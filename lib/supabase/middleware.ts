@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const PROTECTED = ["/scan", "/resultat", "/suivi", "/onboarding"];
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -25,7 +27,24 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const path = request.nextUrl.pathname;
+
+  if (!user && PROTECTED.some((p) => path.startsWith(p))) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth";
+    url.searchParams.set("next", path);
+    return NextResponse.redirect(url);
+  }
+
+  if (user && path === "/auth") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/scan";
+    return NextResponse.redirect(url);
+  }
 
   return supabaseResponse;
 }
