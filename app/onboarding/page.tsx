@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { trackEvent } from "@/lib/track";
 
 interface Step {
   question: string;
@@ -102,6 +103,7 @@ export default function Onboarding() {
       );
     }
 
+    trackEvent("onboarding_complete");
     router.push("/scan");
   }
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { trackEvent } from "@/lib/track";
 
 const SCAN_STEPS = [
   "Lecture de l'image…",
@@ -145,7 +146,8 @@ export default function Scan() {
 
       if (insertError) throw new Error(insertError.message);
 
-      // 4. Store result and redirect
+      trackEvent("scan_complete");
+
       sessionStorage.setItem("scanResult", JSON.stringify(result));
       router.push("/resultat");
     } catch (err: unknown) {

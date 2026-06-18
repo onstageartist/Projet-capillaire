@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { trackEvent } from "@/lib/track";
 
 const PLANS = [
   {
@@ -62,6 +63,15 @@ const PLANS = [
 
 export default function Plus() {
   const [confirmed, setConfirmed] = useState<string | null>(null);
+
+  useEffect(() => {
+    trackEvent("paywall_view");
+  }, []);
+
+  function chooseOffer(planId: string) {
+    trackEvent("offer_click", { plan: planId });
+    setConfirmed(planId);
+  }
 
   if (confirmed) {
     return (
@@ -164,7 +174,7 @@ export default function Plus() {
 
               {/* CTA */}
               <button
-                onClick={() => !plan.disabled && setConfirmed(plan.id)}
+                onClick={() => !plan.disabled && chooseOffer(plan.id)}
                 disabled={plan.disabled}
                 className={`w-full rounded-lg py-3 text-sm font-medium transition-colors ${
                   plan.highlight

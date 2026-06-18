@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { trackEvent } from "@/lib/track";
 
 const ERROR_MAP: Record<string, string> = {
   "User already registered": "Cet email est déjà utilisé.",
@@ -71,6 +72,7 @@ function AuthInner() {
       if (error) {
         setMessage(humanError(error.message));
       } else {
+        trackEvent("inscription");
         setIsSuccess(true);
         setMessage("Vérifie ta boîte mail pour confirmer ton inscription.");
       }

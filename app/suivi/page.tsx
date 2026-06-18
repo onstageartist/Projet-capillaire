@@ -249,6 +249,17 @@ export default function Suivi() {
         {/* Chart */}
         <ScoreChart scans={scans} />
 
+        {scans.length === 1 && (
+          <div className="rounded-xl border border-accent/20 bg-accent/5 p-5 text-center">
+            <p className="text-sm font-medium text-accent">
+              Reviens dans un mois pour mesurer ta progression.
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              On comparera tes scores et tu verras l'évolution de ta densité.
+            </p>
+          </div>
+        )}
+
         {/* Scan history */}
         <div className="space-y-3">
           <p className="text-sm font-medium text-muted">Historique</p>
