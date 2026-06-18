@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -19,6 +19,20 @@ function humanError(msg: string): string {
 }
 
 export default function Auth() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex flex-1 flex-col items-center justify-center px-4">
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+        </main>
+      }
+    >
+      <AuthInner />
+    </Suspense>
+  );
+}
+
+function AuthInner() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
