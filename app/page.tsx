@@ -227,6 +227,54 @@ export default function Home() {
         </div>
       </section>
 
+      {/* FAQ */}
+      <section className="border-t border-border bg-surface/50 px-5 py-20">
+        <div className="mx-auto max-w-2xl">
+          <h2 className="text-center text-2xl font-semibold text-foreground sm:text-3xl">
+            Questions fréquentes
+          </h2>
+          <div className="mt-10 space-y-6">
+            {[
+              {
+                q: "Est-ce que Scalpy remplace un dermatologue ?",
+                a: "Non. Scalpy donne une estimation de bien-être basée sur l'IA. C'est un point de départ, pas un diagnostic. On te recommandera toujours de consulter un professionnel.",
+              },
+              {
+                q: "Le scan est vraiment gratuit ?",
+                a: "Oui, ton premier scan est 100 % gratuit, sans carte bancaire. Les offres Plus et Pro débloquent le protocole complet et le suivi avancé.",
+              },
+              {
+                q: "Mes photos sont-elles confidentielles ?",
+                a: "Totalement. Tes photos sont stockées dans ton espace personnel sécurisé. Elles ne sont ni partagées, ni vendues, ni utilisées à d'autres fins.",
+              },
+              {
+                q: "Comment fonctionne l'analyse ?",
+                a: "Tu prends une photo du dessus de ton crâne. Notre IA analyse la densité capillaire, estime ton stade Norwood et identifie les zones clairsemées — le tout en 30 secondes.",
+              },
+              {
+                q: "À quelle fréquence dois-je scanner ?",
+                a: "Une fois par mois suffit. C'est le bon rythme pour voir une évolution sans te stresser.",
+              },
+            ].map((faq) => (
+              <details
+                key={faq.q}
+                className="group rounded-xl border border-border bg-background"
+              >
+                <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-medium text-foreground">
+                  {faq.q}
+                  <span className="ml-4 shrink-0 text-muted transition-transform group-open:rotate-45">
+                    +
+                  </span>
+                </summary>
+                <p className="px-5 pb-4 text-sm leading-relaxed text-muted">
+                  {faq.a}
+                </p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Final CTA */}
       <section className="px-5 py-24">
         <div className="mx-auto max-w-lg text-center">
@@ -234,7 +282,7 @@ export default function Home() {
             Prêt à savoir où tu en es ?
           </h2>
           <p className="mt-4 text-muted">
-            30 secondes. Gratuit. Confidentiel.
+            Plus tôt tu sais, plus tôt tu agis. Et c'est là que ça se joue.
           </p>
           <Link
             href="/scan"
@@ -242,6 +290,9 @@ export default function Home() {
           >
             Faire mon scan gratuit
           </Link>
+          <p className="mt-4 text-xs text-muted">
+            30 secondes. Gratuit. Confidentiel.
+          </p>
         </div>
       </section>
 

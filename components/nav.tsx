@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/toast";
 
 export default function Nav() {
   const [user, setUser] = useState<{ email?: string } | null>(null);
   const router = useRouter();
+  const { show } = useToast();
 
   useEffect(() => {
     const supabase = createClient();
@@ -28,6 +30,7 @@ export default function Nav() {
     const supabase = createClient();
     await supabase.auth.signOut();
     setUser(null);
+    show("Déconnecté");
     router.push("/");
   }
 

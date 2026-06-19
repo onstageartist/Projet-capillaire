@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/toast";
 
 interface ScanResult {
   score: number | null;
@@ -171,6 +172,7 @@ function DensityGauge({ score }: { score: number }) {
 export default function Resultat() {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const { show } = useToast();
 
   useEffect(() => {
     async function loadResult() {
@@ -372,17 +374,17 @@ export default function Resultat() {
         </div>
 
         <button
-          onClick={() => {
+          onClick={async () => {
+            const text = `Mon scan Scalpy : ${result.score}/100, Norwood ${result.norwood}`;
             if (navigator.share) {
-              navigator.share({
+              await navigator.share({
                 title: "Mon scan Scalpy",
-                text: `Score de densité : ${result.score}/100 — Stade Norwood ${result.norwood}`,
+                text,
                 url: window.location.origin,
               });
             } else {
-              navigator.clipboard.writeText(
-                `Mon scan Scalpy : ${result.score}/100, Norwood ${result.norwood} — ${window.location.origin}`
-              );
+              await navigator.clipboard.writeText(`${text} — ${window.location.origin}`);
+              show("Résultat copié !");
             }
           }}
           className="w-full rounded-lg border border-border py-2.5 text-center text-sm text-muted transition-colors hover:bg-surface hover:text-foreground"

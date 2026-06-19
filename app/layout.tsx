@@ -4,6 +4,7 @@ import Link from "next/link";
 import Nav from "@/components/nav";
 import MobileNav from "@/components/mobile-nav";
 import CookieBanner from "@/components/cookie-banner";
+import { ToastProvider } from "@/components/toast";
 import "./globals.css";
 
 const inter = Inter({
@@ -65,9 +66,11 @@ export default function RootLayout({
             <Nav />
           </div>
         </header>
-        {children}
-        <MobileNav />
-        <CookieBanner />
+        <ToastProvider>
+          {children}
+          <MobileNav />
+          <CookieBanner />
+        </ToastProvider>
       </body>
     </html>
   );

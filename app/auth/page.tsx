@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
 
@@ -212,6 +213,20 @@ function AuthInner() {
             </>
           )}
         </p>
+
+        {mode === "signup" && (
+          <p className="text-xs text-muted">
+            En créant un compte, tu acceptes nos{" "}
+            <Link href="/cgu" className="text-accent hover:underline">
+              CGU
+            </Link>{" "}
+            et notre{" "}
+            <Link href="/confidentialite" className="text-accent hover:underline">
+              politique de confidentialité
+            </Link>
+            .
+          </p>
+        )}
       </div>
     </main>
   );
