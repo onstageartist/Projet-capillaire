@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const rateMap = new Map<string, number[]>();
 const RATE_LIMIT = 5;
@@ -142,12 +144,33 @@ export async function POST(request: Request) {
     try {
       result = await callAnalysis(client, base64, mediaType, model);
     } catch {
-      // Retry with strict instruction
       result = await callAnalysis(client, base64, mediaType, model, true);
+    }
+
+    // Save scan to database
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    let scanId: string | undefined;
+    if (user) {
+      const admin = createAdminClient();
+      const { data: scan } = await admin.from("scans").insert({
+        user_id: user.id,
+        score: result.score,
+        norwood: result.norwood,
+        zones: result.zones,
+        recommendations: result.recommendations,
+        message: result.message,
+        raw_analysis: result,
+        status: result.usable ? "done" : "unusable",
+        prompt_version: PROMPT_VERSION,
+      }).select("id").single();
+      scanId = scan?.id;
     }
 
     return NextResponse.json({
       ...result,
+      scanId,
       prompt_version: PROMPT_VERSION,
     });
   } catch (err: unknown) {

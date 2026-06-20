@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { RadioCard, ProgressBar, Button } from "@/components/ui";
 import { trackEvent } from "@/lib/track";
@@ -55,6 +55,10 @@ export default function Onboarding() {
   const [direction, setDirection] = useState<"next" | "prev">("next");
   const router = useRouter();
 
+  useEffect(() => {
+    trackEvent("onboarding_started");
+  }, []);
+
   const progress = ((step + 1) / TOTAL_SCREENS) * 100;
   const isSignup = step >= QUIZ.length;
 
@@ -76,6 +80,7 @@ export default function Onboarding() {
       setAnswers(updated);
       setShowFeedback(true);
 
+      trackEvent("quiz_step_completed", { step: key, answer: value });
       saveToServer(updated, step);
 
       setTimeout(() => {

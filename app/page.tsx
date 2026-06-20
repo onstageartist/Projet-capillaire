@@ -256,6 +256,9 @@ export default function Home() {
             <Link href="/cgu" className="transition-colors hover:text-text-muted">
               CGU
             </Link>
+            <a href="mailto:mathias.stephant@gmail.com" className="transition-colors hover:text-text-muted">
+              Contact
+            </a>
           </div>
         </div>
       </footer>

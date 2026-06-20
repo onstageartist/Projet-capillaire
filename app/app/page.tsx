@@ -14,6 +14,11 @@ interface ScanHistory {
   created_at: string;
 }
 
+interface ProjectionData {
+  originalUrl: string | null;
+  fullUrl: string | null;
+}
+
 const PROGRAM_WEEKS = [
   { week: 1, pillar: "Soin du cuir chevelu", tasks: ["Shampoing doux sans sulfate", "Séchage naturel (pas de chaleur)", "Massage léger du cuir chevelu 2 min"] },
   { week: 2, pillar: "Nutrition", tasks: ["Ajouter des protéines à chaque repas", "Un aliment riche en zinc par jour", "Boire 1,5L d'eau minimum"] },
@@ -25,7 +30,9 @@ export default function AppPage() {
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
   const [scans, setScans] = useState<ScanHistory[]>([]);
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  const [taskDates, setTaskDates] = useState<Map<string, string>>(new Map());
   const [currentDay, setCurrentDay] = useState(1);
+  const [projection, setProjection] = useState<ProjectionData>({ originalUrl: null, fullUrl: null });
   const router = useRouter();
 
   useEffect(() => {
@@ -67,12 +74,53 @@ export default function AppPage() {
       // Load progress
       const { data: progress } = await supabase
         .from("program_progress")
-        .select("task_id")
+        .select("task_id, created_at")
         .eq("user_id", user.id)
         .eq("done", true);
 
       if (progress) {
         setCompletedTasks(new Set(progress.map((p: { task_id: string }) => p.task_id)));
+        const dates = new Map<string, string>();
+        progress.forEach((p: { task_id: string; created_at: string }) => {
+          dates.set(p.task_id, p.created_at);
+        });
+        setTaskDates(dates);
+      }
+
+      // Load projection for latest scan
+      if (scanData && scanData.length > 0) {
+        const latestScan = scanData[scanData.length - 1];
+        const { data: proj } = await supabase
+          .from("projections")
+          .select("full_path, status")
+          .eq("scan_id", latestScan.id)
+          .eq("user_id", user.id)
+          .single();
+
+        if (proj?.status === "done" && proj.full_path) {
+          const { data: fullUrl } = await supabase.storage
+            .from("projections")
+            .createSignedUrl(proj.full_path, 3600);
+
+          const { data: scanRow } = await supabase
+            .from("scans")
+            .select("photo_path")
+            .eq("id", latestScan.id)
+            .single();
+
+          let origUrl = null;
+          if (scanRow?.photo_path) {
+            const { data: oUrl } = await supabase.storage
+              .from("scalp-photos")
+              .createSignedUrl(scanRow.photo_path, 3600);
+            origUrl = oUrl?.signedUrl ?? null;
+          }
+
+          setProjection({
+            originalUrl: origUrl,
+            fullUrl: fullUrl?.signedUrl ?? null,
+          });
+        }
       }
     });
   }, [router]);
@@ -90,11 +138,16 @@ export default function AppPage() {
   const totalTasks = PROGRAM_WEEKS.reduce((acc, w) => acc + w.tasks.length, 0);
   const progressPercent = Math.round((completedTasks.size / totalTasks) * 100);
 
-  // Calculate streak
+  // Calculate streak (consecutive days with at least 1 completed task)
+  const daysWithTasks = new Set<string>();
+  for (const [, dateStr] of taskDates) {
+    daysWithTasks.add(new Date(dateStr).toDateString());
+  }
   let streak = 0;
-  const today = new Date().toDateString();
-  for (const taskId of completedTasks) {
-    if (taskId.startsWith(today)) streak++;
+  const d = new Date();
+  while (daysWithTasks.has(d.toDateString())) {
+    streak++;
+    d.setDate(d.getDate() - 1);
   }
 
   const lastScan = scans[scans.length - 1];
@@ -146,6 +199,41 @@ export default function AppPage() {
         </div>
 
         <ProgressBar value={progressPercent} />
+
+        {/* Projection (pour abonnés) */}
+        {projection.fullUrl && (
+          <Card>
+            <h2 className="mb-4 text-[17px] font-semibold text-text">
+              Ta projection
+            </h2>
+            <div className="grid grid-cols-2 gap-3">
+              {projection.originalUrl && (
+                <div>
+                  <img src={projection.originalUrl} alt="Avant" className="rounded-[12px] w-full" />
+                  <p className="mt-1 text-center text-xs text-text-faint">Avant</p>
+                </div>
+              )}
+              <div>
+                <img src={projection.fullUrl} alt="Objectif" className="rounded-[12px] w-full" />
+                <p className="mt-1 text-center text-xs text-text-faint">Objectif</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-signal text-center">
+              Simulation — objectif visuel, pas une prédiction
+            </p>
+            <a
+              href={projection.fullUrl}
+              download="scalpy-projection.jpg"
+              className="mt-3 flex items-center justify-center gap-2 rounded-[12px] border border-border py-2 text-sm text-text-muted hover:text-text transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Télécharger
+            </a>
+            <Disclaimer className="mt-3 justify-center" />
+          </Card>
+        )}
 
         {/* Programme hebdo */}
         <Card>
@@ -260,6 +348,30 @@ export default function AppPage() {
             </div>
           </Card>
         )}
+
+        {/* Compte */}
+        <Card>
+          <h2 className="mb-3 text-[17px] font-semibold text-text">
+            Mon compte
+          </h2>
+          <button
+            onClick={async () => {
+              if (!confirm("Tu es sûr de vouloir supprimer ton compte ? Toutes tes données, photos et résultats seront supprimés définitivement.")) return;
+              const res = await fetch("/api/account", { method: "DELETE" });
+              if (res.ok) {
+                const supabase = createClient();
+                await supabase.auth.signOut();
+                window.location.href = "/";
+              }
+            }}
+            className="text-sm text-danger hover:underline"
+          >
+            Supprimer mon compte et mes données
+          </button>
+          <p className="mt-2 text-xs text-text-faint">
+            Suppression réelle et complète (données, photos, fichiers). Irréversible.
+          </p>
+        </Card>
 
         <Disclaimer className="justify-center" />
       </div>

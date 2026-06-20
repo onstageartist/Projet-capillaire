@@ -78,23 +78,22 @@ export default function Scan() {
       trackEvent("photo_uploaded");
       trackEvent("scan_started");
 
-      // Upload photo
-      const scanId = crypto.randomUUID();
-      const path = `${user.id}/${scanId}/original.jpg`;
+      // Upload photo — generate temp ID for storage path
+      const tempId = crypto.randomUUID();
+      const path = `${user.id}/${tempId}/original.jpg`;
 
       const { error: uploadError } = await supabase.storage
         .from("scalp-photos")
         .upload(path, fileRef.current, { contentType: "image/jpeg" });
 
       if (uploadError) {
-        // fallback to old bucket
         const { error: fallback } = await supabase.storage
           .from("photos")
           .upload(path, fileRef.current, { contentType: "image/jpeg" });
         if (fallback) throw new Error(fallback.message);
       }
 
-      // Call analysis API
+      // Call analysis API (also saves to DB)
       const formData = new FormData();
       formData.append("photo", fileRef.current);
 
@@ -104,6 +103,27 @@ export default function Scan() {
       if (result.error) {
         trackEvent("scan_failed", { reason: result.error });
         throw new Error(result.error);
+      }
+
+      if (result.usable === false) {
+        const elapsed = Date.now() - animStart;
+        if (elapsed < MIN_ANIMATION_MS) {
+          await new Promise((r) => setTimeout(r, MIN_ANIMATION_MS - elapsed));
+        }
+        cleanupAnim();
+        setScanning(false);
+        setPreview("");
+        fileRef.current = null;
+        if (formRef.current) formRef.current.reset();
+        setError(result.message || "On n'a pas pu lire cette photo. Reprends-en une avec un peu plus de lumière et la zone bien visible.");
+        return;
+      }
+
+      const scanId = result.scanId || tempId;
+
+      // Update scan record with photo path
+      if (result.scanId) {
+        await supabase.from("scans").update({ photo_path: path }).eq("id", result.scanId);
       }
 
       // Wait for minimum animation time

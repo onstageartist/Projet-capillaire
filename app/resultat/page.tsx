@@ -14,6 +14,7 @@ interface ScanResult {
   recommendations: string[];
   message: string;
   confidence: string;
+  scanId?: string;
 }
 
 const NORWOOD_DESC: Record<string, string> = {
@@ -70,19 +71,51 @@ function ScalpMap({ zones }: { zones: string[] }) {
 
 export default function Resultat() {
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [teaserUrl, setTeaserUrl] = useState<string | null>(null);
+  const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     trackEvent("result_viewed");
 
+    const supabase = createClient();
+
+    async function loadProjection(userId: string, scanId: string) {
+      const { data: proj } = await supabase
+        .from("projections")
+        .select("teaser_path, status")
+        .eq("user_id", userId)
+        .eq("scan_id", scanId)
+        .single();
+
+      if (proj?.status === "done" && proj.teaser_path) {
+        const { data: url } = await supabase.storage
+          .from("projections")
+          .createSignedUrl(proj.teaser_path, 3600);
+        if (url?.signedUrl) setTeaserUrl(url.signedUrl);
+      }
+
+      const photoPath = sessionStorage.getItem("scanPhotoPath");
+      if (photoPath) {
+        const { data: origUrl } = await supabase.storage
+          .from("scalp-photos")
+          .createSignedUrl(photoPath, 3600);
+        if (origUrl?.signedUrl) setOriginalUrl(origUrl.signedUrl);
+      }
+    }
+
     const cached = sessionStorage.getItem("scanResult");
     if (cached) {
-      setResult(JSON.parse(cached));
+      const parsed = JSON.parse(cached);
+      setResult(parsed);
       setLoading(false);
+
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user && parsed.scanId) loadProjection(user.id, parsed.scanId);
+      });
       return;
     }
 
-    const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { setLoading(false); return; }
       const { data } = await supabase
@@ -102,7 +135,9 @@ export default function Resultat() {
           recommendations: data.recommendations || [],
           message: data.message || "",
           confidence: "medium",
+          scanId: data.id,
         });
+        loadProjection(user.id, data.id);
       }
       setLoading(false);
     });
@@ -120,7 +155,9 @@ export default function Resultat() {
     return (
       <main className="flex flex-1 flex-col items-center justify-center px-5">
         <p className="text-text-muted">{result?.message || "Aucun résultat disponible."}</p>
-        <Link href="/scan" className="mt-4 text-accent hover:underline">Faire un scan</Link>
+        <Link href="/scan" className="mt-4 inline-block rounded-[12px] bg-accent px-6 py-3 text-sm font-semibold text-[#06231A]">
+          Faire un scan
+        </Link>
       </main>
     );
   }
@@ -186,9 +223,24 @@ export default function Resultat() {
             <p className="text-sm font-medium text-text-muted mb-3">
               Ta projection avant/après
             </p>
-            <div className="h-40 rounded-[12px] bg-surface-2 flex items-center justify-center">
-              <p className="text-sm text-text-faint">Simulation — objectif visuel</p>
-            </div>
+            {teaserUrl && originalUrl ? (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <img src={originalUrl} alt="Avant" className="rounded-[12px] w-full" />
+                  <p className="mt-1 text-center text-xs text-text-faint">Avant</p>
+                </div>
+                <div>
+                  <img src={teaserUrl} alt="Objectif" className="rounded-[12px] w-full blur-sm" />
+                  <p className="mt-1 text-center text-xs text-text-faint">Objectif</p>
+                </div>
+              </div>
+            ) : teaserUrl ? (
+              <img src={teaserUrl} alt="Projection" className="rounded-[12px] w-full blur-sm" />
+            ) : (
+              <div className="h-40 rounded-[12px] bg-surface-2 flex items-center justify-center">
+                <p className="text-sm text-text-faint">Projection en cours de génération...</p>
+              </div>
+            )}
             <p className="mt-2 text-xs text-signal text-center">
               Simulation — objectif visuel, pas une prédiction
             </p>

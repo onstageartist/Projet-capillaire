@@ -98,6 +98,131 @@ export async function GET(req: Request) {
         }
       }
     }
+    // 3. Paywall abandoned (scan done, paywall viewed, no purchase, marketing consent)
+    const { data: paywallViewers } = await supabase
+      .from("events")
+      .select("user_id")
+      .eq("name", "paywall_viewed")
+      .not("user_id", "is", null);
+
+    if (paywallViewers) {
+      const viewerIds = [...new Set(paywallViewers.map((e: { user_id: string }) => e.user_id))];
+      for (const userId of viewerIds) {
+        const { data: sub } = await supabase
+          .from("subscriptions")
+          .select("status")
+          .eq("user_id", userId)
+          .single();
+
+        if (sub?.status === "active") continue;
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email, marketing_consent")
+          .eq("id", userId)
+          .single();
+
+        if (!profile?.email || !profile.marketing_consent) continue;
+
+        const { data: alreadySent } = await supabase
+          .from("email_log")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("type", "paywall_abandoned")
+          .single();
+
+        if (!alreadySent) {
+          const { data: onb } = await supabase
+            .from("onboarding_responses")
+            .select("answers")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+
+          const objectif = onb?.answers?.objectif?.toLowerCase() || "avancer";
+          const email = emailPaywallAbandoned(objectif);
+          await sendEmail({ to: profile.email, ...email });
+          await supabase.from("email_log").insert({ user_id: userId, type: "paywall_abandoned" });
+          sent.push(`paywall_abandoned:${profile.email}`);
+        }
+      }
+    }
+
+    // 4. Program nudge (active sub, days 1/3/7)
+    if (activeSubs) {
+      for (const sub of activeSubs) {
+        const { data: subDetail } = await supabase
+          .from("subscriptions")
+          .select("created_at")
+          .eq("user_id", sub.user_id)
+          .eq("status", "active")
+          .single();
+
+        if (!subDetail) continue;
+        const daysSince = Math.floor((Date.now() - new Date(subDetail.created_at).getTime()) / (1000 * 60 * 60 * 24));
+
+        for (const nudgeDay of [1, 3, 7]) {
+          if (daysSince !== nudgeDay) continue;
+          const nudgeType = `program_nudge_j${nudgeDay}`;
+
+          const { data: alreadySent } = await supabase
+            .from("email_log")
+            .select("id")
+            .eq("user_id", sub.user_id)
+            .eq("type", nudgeType)
+            .single();
+
+          if (!alreadySent) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("email")
+              .eq("id", sub.user_id)
+              .single();
+
+            if (profile?.email) {
+              const email = emailProgramNudge(nudgeDay);
+              await sendEmail({ to: profile.email, ...email });
+              await supabase.from("email_log").insert({ user_id: sub.user_id, type: nudgeType });
+              sent.push(`${nudgeType}:${profile.email}`);
+            }
+          }
+        }
+      }
+    }
+
+    // 5. Win-back (subscription expired/canceled, marketing consent)
+    const { data: canceledSubs } = await supabase
+      .from("subscriptions")
+      .select("user_id")
+      .in("status", ["canceled", "expired"]);
+
+    if (canceledSubs) {
+      for (const sub of canceledSubs) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email, marketing_consent")
+          .eq("id", sub.user_id)
+          .single();
+
+        if (!profile?.email || !profile.marketing_consent) continue;
+
+        const { data: alreadySent } = await supabase
+          .from("email_log")
+          .select("id")
+          .eq("user_id", sub.user_id)
+          .eq("type", "winback")
+          .single();
+
+        if (!alreadySent) {
+          const { emailWinback } = await import("@/lib/email/resend");
+          const email = emailWinback();
+          await sendEmail({ to: profile.email, ...email });
+          await supabase.from("email_log").insert({ user_id: sub.user_id, type: "winback" });
+          sent.push(`winback:${profile.email}`);
+        }
+      }
+    }
   } catch (e) {
     console.error("Cron email error:", e);
   }

@@ -129,6 +129,14 @@ export default function Plus() {
           />
         </div>
 
+        {/* Preuve sociale */}
+        <div className="rounded-[16px] border border-border bg-surface/50 p-5 text-center">
+          <p className="text-sm text-text-muted">
+            Scalpy est en lancement. Rejoins les premiers utilisateurs et
+            prends de l'avance sur ton suivi.
+          </p>
+        </div>
+
         {/* Confiance */}
         <div className="flex flex-col items-center gap-3 text-center text-sm text-text-muted">
           <div className="flex flex-wrap justify-center gap-6">
@@ -150,6 +158,10 @@ export default function Plus() {
               </svg>
               Données privées en Europe
             </span>
+          </div>
+          <div className="flex gap-4 text-xs text-text-faint">
+            <a href="/cgu" className="hover:text-text-muted">CGU</a>
+            <a href="/confidentialite" className="hover:text-text-muted">Confidentialité</a>
           </div>
         </div>
 
