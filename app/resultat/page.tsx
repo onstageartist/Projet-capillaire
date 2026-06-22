@@ -76,6 +76,7 @@ export default function Resultat() {
   const [fullProjectionUrl, setFullProjectionUrl] = useState<string | null>(null);
   const [objectif, setObjectif] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [projectionLoading, setProjectionLoading] = useState(true);
 
   useEffect(() => {
     trackEvent("result_viewed");
@@ -112,6 +113,8 @@ export default function Resultat() {
           .createSignedUrl(photoPath, 3600);
         if (origUrl?.signedUrl) setOriginalUrl(origUrl.signedUrl);
       }
+
+      setProjectionLoading(false);
     }
 
     async function loadObjectif(userId: string) {
@@ -143,7 +146,7 @@ export default function Resultat() {
     }
 
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { setLoading(false); return; }
+      if (!user) { setLoading(false); setProjectionLoading(false); return; }
       const { data } = await supabase
         .from("scans")
         .select("*")
@@ -164,6 +167,8 @@ export default function Resultat() {
           scanId: data.id,
         });
         loadProjection(user.id, data.id);
+      } else {
+        setProjectionLoading(false);
       }
       loadObjectif(user.id);
       setLoading(false);
@@ -190,12 +195,86 @@ export default function Resultat() {
   }
 
   const horizonDate = new Date();
-  horizonDate.setDate(horizonDate.getDate() + 84); // 12 semaines
+  horizonDate.setDate(horizonDate.getDate() + 84);
   const dateStr = horizonDate.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+
+  const hasProjection = originalUrl && (teaserUrl || fullProjectionUrl);
 
   return (
     <main className="flex flex-1 flex-col items-center px-5 py-10">
       <div className="w-full max-w-lg space-y-6 animate-fade-in">
+
+        {/* ─── HERO : Aperçu transformation ─── */}
+        <div className="space-y-4">
+          <div className="text-center">
+            <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
+              Ton aperçu transformation
+            </h1>
+            <p className="mt-2 text-sm text-text-muted">
+              Découvre ce vers quoi tu peux tendre en prenant soin de tes cheveux.
+            </p>
+          </div>
+
+          {hasProjection ? (
+            <ImageSlider
+              beforeSrc={originalUrl}
+              afterSrc={fullProjectionUrl || teaserUrl!}
+              beforeLabel="ACTUELLEMENT"
+              afterLabel="APRÈS 12 SEMAINES"
+            />
+          ) : (
+            <div className="relative w-full overflow-hidden rounded-[16px] bg-surface-2 aspect-[3/4] flex items-center justify-center">
+              {projectionLoading ? (
+                <div className="flex flex-col items-center gap-3">
+                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+                  <p className="text-sm text-text-faint">Génération de ta projection...</p>
+                </div>
+              ) : (
+                <p className="text-sm text-text-faint px-8 text-center">
+                  Projection non disponible pour le moment.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Carte objectif (style scoremax) */}
+          <div className="rounded-[16px] bg-surface-2 border border-border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="h-4 w-4 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5" />
+                </svg>
+                <span className="text-xs font-semibold uppercase tracking-wider text-text">
+                  Ton objectif capillaire
+                </span>
+              </div>
+              <span className="text-xs font-data font-medium text-text-muted">{dateStr}</span>
+            </div>
+
+            {objectif && (
+              <p className="text-sm text-accent font-medium">{objectif}</p>
+            )}
+
+            <div className="flex items-center justify-between text-xs text-text-faint">
+              <span>
+                Norwood {result.norwood || "?"} — Score {result.score}/100
+              </span>
+              <span className="font-data font-medium">12 semaines</span>
+            </div>
+
+            {/* Mini progress bar */}
+            <div className="h-1 w-full rounded-full bg-border">
+              <div className="h-1 rounded-full bg-accent" style={{ width: "8%" }} />
+            </div>
+          </div>
+
+          <p className="text-center text-xs text-signal">
+            Simulation d'objectif, pas une promesse de résultat
+          </p>
+        </div>
+
+        {/* ─── BILAN DÉTAILLÉ ─── */}
+
         {/* Score */}
         <Card className="flex flex-col items-center">
           <p className="mb-2 text-sm font-medium text-text-muted">Score de densité</p>
@@ -240,58 +319,7 @@ export default function Resultat() {
           </Card>
         )}
 
-        {/* ─── ÉCRAN 8 : Révélation objectif (slider) ─── */}
-        {originalUrl && (teaserUrl || fullProjectionUrl) && (
-          <div className="space-y-4">
-            <div className="text-center">
-              <h2 className="font-display text-[22px] font-semibold tracking-[-0.01em] text-text">
-                Ton objectif en image
-              </h2>
-              <p className="mt-1 text-sm text-text-muted">
-                Voici ce vers quoi tu peux tendre en agissant tôt.
-              </p>
-            </div>
-
-            <ImageSlider
-              beforeSrc={originalUrl}
-              afterSrc={fullProjectionUrl || teaserUrl!}
-              beforeLabel="Aujourd'hui"
-              afterLabel="Ton objectif"
-            />
-
-            {/* Cap + horizon */}
-            {objectif && (
-              <Card>
-                <p className="text-sm font-medium text-text">Ton cap</p>
-                <p className="mt-1 text-sm text-accent">{objectif}</p>
-                <p className="mt-2 text-xs text-text-faint">
-                  Horizon 12 semaines, objectif au {dateStr}
-                </p>
-              </Card>
-            )}
-
-            <p className="text-center text-xs text-signal">
-              Simulation d'objectif, pas une promesse de résultat
-            </p>
-          </div>
-        )}
-
-        {/* Projection placeholder si pas encore dispo */}
-        {!originalUrl && (
-          <Card>
-            <p className="text-sm font-medium text-text-muted mb-3">
-              Ta projection avant/après
-            </p>
-            <div className="h-40 rounded-[12px] bg-surface-2 flex items-center justify-center">
-              <p className="text-sm text-text-faint">Projection en cours de génération...</p>
-            </div>
-            <p className="mt-2 text-xs text-signal text-center">
-              Simulation d'objectif, pas une promesse de résultat
-            </p>
-          </Card>
-        )}
-
-        {/* Recommendations - 2 visible, rest locked */}
+        {/* Recommendations */}
         {result.recommendations.length > 0 && (
           <Card>
             <p className="mb-4 text-sm font-medium text-text-muted">
@@ -310,9 +338,9 @@ export default function Resultat() {
           </Card>
         )}
 
-        {/* CTA vers mur */}
+        {/* CTA */}
         <Link href="/plus" onClick={() => trackEvent("unlock_click")}>
-          <Button variant="primary" size="lg">Voir mon plan</Button>
+          <Button variant="primary" size="lg">Continuer</Button>
         </Link>
 
         {/* Actions */}

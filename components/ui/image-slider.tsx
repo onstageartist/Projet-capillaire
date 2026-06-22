@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback } from "react";
 import { trackEvent } from "@/lib/track";
 
 interface ImageSliderProps {
@@ -13,8 +13,8 @@ interface ImageSliderProps {
 export function ImageSlider({
   beforeSrc,
   afterSrc,
-  beforeLabel = "Aujourd'hui",
-  afterLabel = "Ton objectif",
+  beforeLabel = "ACTUELLEMENT",
+  afterLabel = "APRÈS 12 SEMAINES",
 }: ImageSliderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(50);
@@ -25,7 +25,7 @@ export function ImageSlider({
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = ((clientX - rect.left) / rect.width) * 100;
-    setPosition(Math.max(0, Math.min(100, x)));
+    setPosition(Math.max(2, Math.min(98, x)));
     if (!tracked.current) {
       tracked.current = true;
       trackEvent("slider_manipulated");
@@ -50,15 +50,15 @@ export function ImageSlider({
   return (
     <div
       ref={containerRef}
-      className="relative w-full select-none overflow-hidden rounded-[16px] touch-none"
+      className="relative w-full select-none overflow-hidden rounded-[16px] touch-none aspect-[3/4]"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
-      {/* After (right / objectif) - full width behind */}
-      <img src={afterSrc} alt={afterLabel} className="block w-full" draggable={false} />
+      {/* After (right / objectif) */}
+      <img src={afterSrc} alt={afterLabel} className="absolute inset-0 h-full w-full object-cover" draggable={false} />
 
-      {/* Before (left / aujourd'hui) - clipped */}
+      {/* Before (left / actuellement) - clipped */}
       <div
         className="absolute inset-0 overflow-hidden"
         style={{ width: `${position}%` }}
@@ -66,8 +66,7 @@ export function ImageSlider({
         <img
           src={beforeSrc}
           alt={beforeLabel}
-          className="block w-full"
-          style={{ width: containerRef.current ? `${containerRef.current.offsetWidth}px` : "100%" }}
+          className="absolute inset-0 h-full w-full object-cover"
           draggable={false}
         />
       </div>
@@ -77,18 +76,18 @@ export function ImageSlider({
         className="absolute top-0 bottom-0 w-0.5 bg-white/80"
         style={{ left: `${position}%` }}
       >
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-ink/60 backdrop-blur-sm">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-ink/70 backdrop-blur-sm">
           <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l-3 3 3 3m8-6l3 3-3 3" />
           </svg>
         </div>
       </div>
 
-      {/* Labels */}
-      <span className="absolute bottom-3 left-3 rounded-full bg-ink/60 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+      {/* Top badges */}
+      <span className="absolute top-3 left-3 rounded-[8px] bg-ink/70 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
         {beforeLabel}
       </span>
-      <span className="absolute bottom-3 right-3 rounded-full bg-ink/60 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+      <span className="absolute top-3 right-3 rounded-[8px] bg-ink/70 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">
         {afterLabel}
       </span>
     </div>
