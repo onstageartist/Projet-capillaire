@@ -9,7 +9,7 @@ import dynamic from "next/dynamic";
 
 const HairScanner = dynamic(() => import("@/components/hair-scanner"), { ssr: false });
 
-type ScanStep = "manque" | "choix" | "capture" | "capture_top" | "processing" | "bilan";
+type ScanStep = "manque" | "choix" | "capture" | "processing" | "bilan";
 
 const ANALYSIS_STEPS = [
   "Détection de la zone capillaire",
@@ -36,8 +36,7 @@ interface ScanResult {
 
 export default function Scan() {
   const [step, setStep] = useState<ScanStep>("manque");
-  const [facePhoto, setFacePhoto] = useState<string | null>(null);
-  const [topPhoto, setTopPhoto] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [analysisStep, setAnalysisStep] = useState(0);
   const [analysisPercent, setAnalysisPercent] = useState(0);
   const [error, setError] = useState("");
@@ -52,15 +51,9 @@ export default function Scan() {
     });
   }, [router]);
 
-  const handleFaceCapture = useCallback((dataUrl: string) => {
-    setFacePhoto(dataUrl);
-    trackEvent("scan_face_captured");
-    setStep("capture_top");
-  }, []);
-
-  const handleTopCapture = useCallback((dataUrl: string) => {
-    setTopPhoto(dataUrl);
-    trackEvent("scan_top_captured");
+  const handleAllCaptured = useCallback((capturedPhotos: string[]) => {
+    setPhotos(capturedPhotos);
+    trackEvent("scan_captured", { photos: capturedPhotos.length });
     setStep("processing");
   }, []);
 
@@ -88,7 +81,8 @@ export default function Scan() {
 
     async function runAnalysis() {
       try {
-        const photoToSend = facePhoto!;
+        const photoToSend = photos[0];
+        if (!photoToSend) return;
         const blob = await fetch(photoToSend).then(r => r.blob());
         const file = new File([blob], "scan.jpg", { type: "image/jpeg" });
 
@@ -142,7 +136,7 @@ export default function Scan() {
 
     runAnalysis();
     return () => { clearInterval(stepInterval); clearInterval(percentInterval); };
-  }, [step, facePhoto, topPhoto]);
+  }, [step, photos]);
 
   // ─── ÉCRAN 1 : Le manque ───
   if (step === "manque") {
@@ -264,21 +258,13 @@ export default function Scan() {
     );
   }
 
-  // ─── ÉCRAN 5a : Capture face ───
+  // ─── ÉCRAN 5 : Capture (face + sommet dans un seul composant) ───
   if (step === "capture") {
     return (
       <main className="flex flex-1 flex-col items-center px-5 py-6">
         <div className="w-full max-w-lg space-y-4 animate-fade-in">
-          <div className="text-center">
-            <p className="text-sm font-medium text-accent">Prise 1 sur 2</p>
-            <h1 className="font-display text-[22px] font-semibold tracking-[-0.01em] text-text">
-              Cadre le haut de ton crâne
-            </h1>
-          </div>
-
           <HairScanner
-            phase="face"
-            onCapture={handleFaceCapture}
+            onAllCaptured={handleAllCaptured}
             onError={() => {
               setError("Impossible d'accéder à la caméra. Vérifie les permissions de ton navigateur.");
               setStep("manque");
@@ -287,38 +273,6 @@ export default function Scan() {
 
           <button
             onClick={() => setStep("choix")}
-            className="block w-full text-center text-sm text-text-muted transition-colors hover:text-text"
-          >
-            Annuler
-          </button>
-        </div>
-      </main>
-    );
-  }
-
-  // ─── ÉCRAN 5b : Capture sommet ───
-  if (step === "capture_top") {
-    return (
-      <main className="flex flex-1 flex-col items-center px-5 py-6">
-        <div className="w-full max-w-lg space-y-4 animate-fade-in">
-          <div className="text-center">
-            <p className="text-sm font-medium text-accent">Prise 2 sur 2</p>
-            <h1 className="font-display text-[22px] font-semibold tracking-[-0.01em] text-text">
-              Penche la tête et montre le sommet
-            </h1>
-          </div>
-
-          <HairScanner
-            phase="top"
-            onCapture={handleTopCapture}
-            onError={() => {
-              setError("Erreur caméra. Réessaie.");
-              setStep("manque");
-            }}
-          />
-
-          <button
-            onClick={() => setStep("capture")}
             className="block w-full text-center text-sm text-text-muted transition-colors hover:text-text"
           >
             Annuler

@@ -18,16 +18,12 @@ const FACE_MODEL =
 const HAIR_CLASS = 1;
 const EMERAUDE = [22, 185, 129];
 
-type ScanPhase = "face" | "top";
-
 type Props = {
-  phase: ScanPhase;
-  onCapture: (dataUrl: string, phase: ScanPhase) => void;
-  onReady?: () => void;
+  onAllCaptured: (photos: string[]) => void;
   onError?: (err: Error) => void;
 };
 
-export default function HairScanner({ phase, onCapture, onReady, onError }: Props) {
+export default function HairScanner({ onAllCaptured, onError }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const captureRef = useRef<HTMLCanvasElement>(null);
@@ -36,85 +32,48 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
   const faceRef = useRef<FaceLandmarker | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(-1);
-  const alignedFramesRef = useRef<number>(0);
-  const capturedRef = useRef(false);
+  const photosRef = useRef<string[]>([]);
 
-  const [status, setStatus] = useState<"init" | "loading" | "ready" | "aligning" | "captured" | "error">("init");
+  const [status, setStatus] = useState<"loading" | "ready" | "captured" | "error">("loading");
   const [loadingMsg, setLoadingMsg] = useState("Préparation de la caméra...");
-  const [alignProgress, setAlignProgress] = useState(0);
+  const [phase, setPhase] = useState(0); // 0 = face, 1 = sommet
+  const [flash, setFlash] = useState(false);
 
-  const ALIGN_THRESHOLD = 15;
-
-  const loadModels = useCallback(async () => {
-    setLoadingMsg("Chargement du modèle d'analyse...");
-    const vision = await FilesetResolver.forVisionTasks(WASM);
-
-    setLoadingMsg("Initialisation du scanner...");
-    try {
-      segmenterRef.current = await ImageSegmenter.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: HAIR_MODEL, delegate: "GPU" },
-        runningMode: "VIDEO",
-        outputCategoryMask: true,
-        outputConfidenceMasks: false,
-      });
-    } catch {
-      segmenterRef.current = await ImageSegmenter.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: HAIR_MODEL },
-        runningMode: "VIDEO",
-        outputCategoryMask: true,
-        outputConfidenceMasks: false,
-      });
-    }
-
-    setLoadingMsg("Chargement du détecteur de visage...");
-    try {
-      faceRef.current = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: FACE_MODEL, delegate: "GPU" },
-        runningMode: "VIDEO",
-        numFaces: 1,
-      });
-    } catch {
-      faceRef.current = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: FACE_MODEL },
-        runningMode: "VIDEO",
-        numFaces: 1,
-      });
-    }
-  }, []);
-
-  const startCamera = useCallback(async () => {
-    setLoadingMsg("Accès à la caméra...");
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false,
-    });
-    const video = videoRef.current!;
-    video.srcObject = stream;
-    video.setAttribute("playsinline", "true");
-    video.muted = true;
-    await video.play();
-  }, []);
+  const PHASES = [
+    { label: "Cadre ton visage de face", title: "Prise 1 sur 2" },
+    { label: "Penche la tête et montre le sommet", title: "Prise 2 sur 2" },
+  ];
 
   const capture = useCallback(() => {
-    if (capturedRef.current) return;
-    capturedRef.current = true;
     const video = videoRef.current!;
     const c = captureRef.current!;
     c.width = video.videoWidth;
     c.height = video.videoHeight;
     c.getContext("2d")!.drawImage(video, 0, 0, c.width, c.height);
     const dataUrl = c.toDataURL("image/jpeg", 0.92);
-    setStatus("captured");
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    onCapture(dataUrl, phase);
-  }, [onCapture, phase]);
+
+    setFlash(true);
+    setTimeout(() => setFlash(false), 300);
+
+    photosRef.current = [...photosRef.current, dataUrl];
+
+    if (photosRef.current.length < PHASES.length) {
+      setPhase((p) => p + 1);
+      setStatus("ready");
+    } else {
+      setStatus("captured");
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      const stream = videoRef.current?.srcObject as MediaStream | null;
+      stream?.getTracks().forEach((t) => t.stop());
+      onAllCaptured(photosRef.current);
+    }
+  }, [onAllCaptured]);
 
   const renderLoop = useCallback(() => {
     const video = videoRef.current;
     const overlay = overlayRef.current;
     const segmenter = segmenterRef.current;
-    const face = faceRef.current;
-    if (!video || !overlay || !segmenter || !face || capturedRef.current) return;
+    if (!video || !overlay || !segmenter) return;
 
     if (video.currentTime !== lastTimeRef.current && video.videoWidth > 0) {
       lastTimeRef.current = video.currentTime;
@@ -147,60 +106,59 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
           }
         });
       } catch {
-        // segmentation frame skip
-      }
-
-      if (phase === "face") {
-        try {
-          const faceRes = face.detectForVideo(video, now);
-          const ok = isWellAligned(faceRes, video.videoWidth, video.videoHeight);
-          if (ok) {
-            alignedFramesRef.current += 1;
-            setAlignProgress(Math.min(alignedFramesRef.current / ALIGN_THRESHOLD, 1));
-            setStatus("aligning");
-            if (alignedFramesRef.current > ALIGN_THRESHOLD) {
-              capture();
-              return;
-            }
-          } else {
-            alignedFramesRef.current = 0;
-            setAlignProgress(0);
-            setStatus("ready");
-          }
-        } catch {
-          // face detection frame skip
-        }
+        // frame skip
       }
     }
     rafRef.current = requestAnimationFrame(renderLoop);
-  }, [phase, capture]);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
-    capturedRef.current = false;
-    alignedFramesRef.current = 0;
-    setAlignProgress(0);
-    setStatus("loading");
 
     const timeout = setTimeout(() => {
       if (mounted && status === "loading") {
         setStatus("error");
-        onError?.(new Error("Chargement trop long. Vérifie ta connexion et réessaie."));
+        onError?.(new Error("Chargement trop long. Vérifie ta connexion."));
       }
     }, 45000);
 
     (async () => {
       try {
-        await startCamera();
-        if (!mounted) return;
-        setLoadingMsg("Chargement des modèles IA...");
+        setLoadingMsg("Accès à la caméra...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        const video = videoRef.current!;
+        video.srcObject = stream;
+        video.setAttribute("playsinline", "true");
+        video.muted = true;
+        await video.play();
 
-        await loadModels();
         if (!mounted) return;
+        setLoadingMsg("Chargement du modèle d'analyse...");
 
+        const vision = await FilesetResolver.forVisionTasks(WASM);
+
+        try {
+          segmenterRef.current = await ImageSegmenter.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: HAIR_MODEL, delegate: "GPU" },
+            runningMode: "VIDEO",
+            outputCategoryMask: true,
+            outputConfidenceMasks: false,
+          });
+        } catch {
+          segmenterRef.current = await ImageSegmenter.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: HAIR_MODEL },
+            runningMode: "VIDEO",
+            outputCategoryMask: true,
+            outputConfidenceMasks: false,
+          });
+        }
+
+        if (!mounted) return;
         clearTimeout(timeout);
         setStatus("ready");
-        onReady?.();
         rafRef.current = requestAnimationFrame(renderLoop);
       } catch (e) {
         console.error("HairScanner error:", e);
@@ -222,113 +180,81 @@ export default function HairScanner({ phase, onCapture, onReady, onError }: Prop
   }, []);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-[16px] bg-surface-2">
-      <video
-        ref={videoRef}
-        className="w-full"
-        style={{ transform: "scaleX(-1)" }}
-      />
-      <canvas
-        ref={overlayRef}
-        className="pointer-events-none absolute inset-0 h-full w-full"
-        style={{ transform: "scaleX(-1)" }}
-      />
-      <canvas ref={captureRef} className="hidden" />
-
-      {/* Grille de cadrage */}
-      {status !== "loading" && status !== "init" && (
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-[15%] rounded-full border-2 border-accent/30" />
-          <div className="absolute left-1/2 top-[10%] bottom-[10%] w-px -translate-x-1/2 bg-accent/15" />
-          <div className="absolute top-1/2 left-[10%] right-[10%] h-px -translate-y-1/2 bg-accent/15" />
-        </div>
-      )}
-
-      {/* Anneau de progression (auto-capture face) */}
-      {phase === "face" && status === "aligning" && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <svg className="h-48 w-48" viewBox="0 0 100 100">
-            <circle
-              cx="50" cy="50" r="45"
-              fill="none" stroke="var(--accent)" strokeWidth="3" strokeOpacity="0.2"
-            />
-            <circle
-              cx="50" cy="50" r="45"
-              fill="none" stroke="var(--accent)" strokeWidth="3"
-              strokeDasharray={`${alignProgress * 283} 283`}
-              strokeLinecap="round"
-              transform="rotate(-90 50 50)"
-              className="transition-all duration-200"
-            />
-          </svg>
-        </div>
-      )}
-
-      {/* Texte de statut */}
-      <div className="absolute bottom-4 left-0 right-0 text-center">
-        {(status === "init" || status === "loading") && (
-          <div className="flex flex-col items-center gap-2">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-            <span className="rounded-full bg-ink/60 px-4 py-1.5 text-sm font-medium text-text backdrop-blur-sm">
-              {loadingMsg}
-            </span>
-          </div>
-        )}
-        {status === "ready" && phase === "face" && (
-          <span className="rounded-full bg-ink/60 px-4 py-1.5 text-sm font-medium text-text backdrop-blur-sm">
-            Cadre ton visage de face
-          </span>
-        )}
-        {status === "ready" && phase === "top" && (
-          <span className="rounded-full bg-ink/60 px-4 py-1.5 text-sm font-medium text-text backdrop-blur-sm">
-            Montre le sommet de ton crâne
-          </span>
-        )}
-        {status === "aligning" && (
-          <span className="rounded-full bg-accent/20 px-4 py-1.5 text-sm font-semibold text-accent backdrop-blur-sm">
-            Ne bouge pas
-          </span>
-        )}
-        {status === "captured" && (
-          <span className="rounded-full bg-accent/20 px-4 py-1.5 text-sm font-semibold text-accent backdrop-blur-sm">
-            Capturé
-          </span>
-        )}
-        {status === "error" && (
-          <span className="rounded-full bg-danger/20 px-4 py-1.5 text-sm font-medium text-danger backdrop-blur-sm">
-            Erreur de chargement
-          </span>
-        )}
+    <div className="w-full space-y-4">
+      {/* Titre de la prise */}
+      <div className="text-center">
+        <p className="text-sm font-medium text-accent">{PHASES[phase]?.title}</p>
+        <h2 className="font-display text-[22px] font-semibold tracking-[-0.01em] text-text">
+          {phase === 0 ? "Cadre le haut de ton crâne" : "Penche la tête et montre le sommet"}
+        </h2>
       </div>
 
-      {/* Bouton capture manuelle */}
-      {(status === "ready" || status === "aligning") && (
-        <button
-          onClick={capture}
-          className="absolute bottom-16 left-1/2 -translate-x-1/2 flex h-16 w-16 items-center justify-center rounded-full border-4 border-accent bg-accent/20 transition-transform active:scale-95"
-          aria-label="Capturer"
-        >
-          <div className="h-12 w-12 rounded-full bg-accent" />
-        </button>
-      )}
+      {/* Zone caméra */}
+      <div className="relative w-full overflow-hidden rounded-[16px] bg-surface-2">
+        <video
+          ref={videoRef}
+          className="w-full"
+          style={{ transform: "scaleX(-1)" }}
+        />
+        <canvas
+          ref={overlayRef}
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          style={{ transform: "scaleX(-1)" }}
+        />
+        <canvas ref={captureRef} className="hidden" />
+
+        {/* Flash de capture */}
+        {flash && (
+          <div className="absolute inset-0 animate-fade-in bg-white/30" />
+        )}
+
+        {/* Grille de cadrage */}
+        {status === "ready" && (
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute inset-[15%] rounded-full border-2 border-accent/30" />
+            <div className="absolute left-1/2 top-[10%] bottom-[10%] w-px -translate-x-1/2 bg-accent/15" />
+            <div className="absolute top-1/2 left-[10%] right-[10%] h-px -translate-y-1/2 bg-accent/15" />
+          </div>
+        )}
+
+        {/* Texte de statut */}
+        <div className="absolute bottom-4 left-0 right-0 text-center">
+          {status === "loading" && (
+            <div className="flex flex-col items-center gap-2">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+              <span className="rounded-full bg-ink/60 px-4 py-1.5 text-sm font-medium text-text backdrop-blur-sm">
+                {loadingMsg}
+              </span>
+            </div>
+          )}
+          {status === "ready" && (
+            <span className="rounded-full bg-ink/60 px-4 py-1.5 text-sm font-medium text-text backdrop-blur-sm">
+              {PHASES[phase]?.label}
+            </span>
+          )}
+          {status === "captured" && (
+            <span className="rounded-full bg-accent/20 px-4 py-1.5 text-sm font-semibold text-accent backdrop-blur-sm">
+              Capturé
+            </span>
+          )}
+          {status === "error" && (
+            <span className="rounded-full bg-danger/20 px-4 py-1.5 text-sm font-medium text-danger backdrop-blur-sm">
+              Erreur de chargement
+            </span>
+          )}
+        </div>
+
+        {/* Bouton capture manuelle */}
+        {status === "ready" && (
+          <button
+            onClick={capture}
+            className="absolute bottom-16 left-1/2 -translate-x-1/2 flex h-16 w-16 items-center justify-center rounded-full border-4 border-accent bg-accent/20 transition-transform active:scale-95"
+            aria-label="Capturer"
+          >
+            <div className="h-12 w-12 rounded-full bg-accent" />
+          </button>
+        )}
+      </div>
     </div>
   );
-}
-
-function isWellAligned(res: ReturnType<FaceLandmarker["detectForVideo"]>, _w: number, _h: number): boolean {
-  if (!res?.faceLandmarks?.length) return false;
-  const lm = res.faceLandmarks[0];
-  let minX = 1, maxX = 0, minY = 1, maxY = 0;
-  for (const p of lm) {
-    minX = Math.min(minX, p.x);
-    maxX = Math.max(maxX, p.x);
-    minY = Math.min(minY, p.y);
-    maxY = Math.max(maxY, p.y);
-  }
-  const cx = (minX + maxX) / 2;
-  const cy = (minY + maxY) / 2;
-  const boxW = maxX - minX;
-  const centered = Math.abs(cx - 0.5) < 0.25 && Math.abs(cy - 0.5) < 0.25;
-  const bigEnough = boxW > 0.2;
-  return centered && bigEnough;
 }
