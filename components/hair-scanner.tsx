@@ -137,7 +137,6 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
             setStatus("aligning");
             if (alignedFramesRef.current >= ALIGN_THRESHOLD) {
               doCapture();
-              return;
             }
           } else {
             alignedFramesRef.current = 0;
