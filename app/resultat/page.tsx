@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { Gauge, Card, Button, LockedOverlay, Disclaimer, Badge } from "@/components/ui";
+import { Gauge, Card, Button, Disclaimer, Badge, ImageSlider } from "@/components/ui";
 
 interface ScanResult {
   usable: boolean;
@@ -18,9 +18,9 @@ interface ScanResult {
 }
 
 const NORWOOD_DESC: Record<string, string> = {
-  I: "Pas de recul visible — ton cuir chevelu est en très bon état.",
+  I: "Pas de recul visible. Ton cuir chevelu est en très bon état.",
   II: "Léger recul de la ligne frontale, souvent le tout premier signe.",
-  III: "Recul plus net au niveau des golfes — le stade où agir fait la différence.",
+  III: "Recul plus net au niveau des golfes. Le stade où agir fait la différence.",
   IV: "Golfes marqués et début de perte sur le vertex.",
   V: "Les zones dégarnies des golfes et du vertex commencent à se rejoindre.",
   VI: "La bande de cheveux entre les golfes et le vertex a largement disparu.",
@@ -73,6 +73,8 @@ export default function Resultat() {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [teaserUrl, setTeaserUrl] = useState<string | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  const [fullProjectionUrl, setFullProjectionUrl] = useState<string | null>(null);
+  const [objectif, setObjectif] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -83,16 +85,24 @@ export default function Resultat() {
     async function loadProjection(userId: string, scanId: string) {
       const { data: proj } = await supabase
         .from("projections")
-        .select("teaser_path, status")
+        .select("teaser_path, full_path, status")
         .eq("user_id", userId)
         .eq("scan_id", scanId)
         .single();
 
-      if (proj?.status === "done" && proj.teaser_path) {
-        const { data: url } = await supabase.storage
-          .from("projections")
-          .createSignedUrl(proj.teaser_path, 3600);
-        if (url?.signedUrl) setTeaserUrl(url.signedUrl);
+      if (proj?.status === "done") {
+        if (proj.teaser_path) {
+          const { data: url } = await supabase.storage
+            .from("projections")
+            .createSignedUrl(proj.teaser_path, 3600);
+          if (url?.signedUrl) setTeaserUrl(url.signedUrl);
+        }
+        if (proj.full_path) {
+          const { data: url } = await supabase.storage
+            .from("projections")
+            .createSignedUrl(proj.full_path, 3600);
+          if (url?.signedUrl) setFullProjectionUrl(url.signedUrl);
+        }
       }
 
       const photoPath = sessionStorage.getItem("scanPhotoPath");
@@ -104,6 +114,19 @@ export default function Resultat() {
       }
     }
 
+    async function loadObjectif(userId: string) {
+      const { data } = await supabase
+        .from("onboarding_responses")
+        .select("answers")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (data?.answers?.objectif) {
+        setObjectif(data.answers.objectif);
+      }
+    }
+
     const cached = sessionStorage.getItem("scanResult");
     if (cached) {
       const parsed = JSON.parse(cached);
@@ -111,7 +134,10 @@ export default function Resultat() {
       setLoading(false);
 
       supabase.auth.getUser().then(({ data: { user } }) => {
-        if (user && parsed.scanId) loadProjection(user.id, parsed.scanId);
+        if (user) {
+          if (parsed.scanId) loadProjection(user.id, parsed.scanId);
+          loadObjectif(user.id);
+        }
       });
       return;
     }
@@ -139,6 +165,7 @@ export default function Resultat() {
         });
         loadProjection(user.id, data.id);
       }
+      loadObjectif(user.id);
       setLoading(false);
     });
   }, []);
@@ -162,17 +189,13 @@ export default function Resultat() {
     );
   }
 
+  const horizonDate = new Date();
+  horizonDate.setDate(horizonDate.getDate() + 84); // 12 semaines
+  const dateStr = horizonDate.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+
   return (
     <main className="flex flex-1 flex-col items-center px-5 py-10">
       <div className="w-full max-w-lg space-y-6 animate-fade-in">
-        {/* Header */}
-        <div className="text-center">
-          <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">Ton résultat</h1>
-          <p className="mt-1 text-sm text-text-muted">
-            Voici où tu en es — c'est ton point de départ.
-          </p>
-        </div>
-
         {/* Score */}
         <Card className="flex flex-col items-center">
           <p className="mb-2 text-sm font-medium text-text-muted">Score de densité</p>
@@ -217,35 +240,56 @@ export default function Resultat() {
           </Card>
         )}
 
-        {/* Projection teaser (locked) */}
-        <LockedOverlay ctaLabel="Débloquer ma projection" href="/plus">
+        {/* ─── ÉCRAN 8 : Révélation objectif (slider) ─── */}
+        {originalUrl && (teaserUrl || fullProjectionUrl) && (
+          <div className="space-y-4">
+            <div className="text-center">
+              <h2 className="font-display text-[22px] font-semibold tracking-[-0.01em] text-text">
+                Ton objectif en image
+              </h2>
+              <p className="mt-1 text-sm text-text-muted">
+                Voici ce vers quoi tu peux tendre en agissant tôt.
+              </p>
+            </div>
+
+            <ImageSlider
+              beforeSrc={originalUrl}
+              afterSrc={fullProjectionUrl || teaserUrl!}
+              beforeLabel="Aujourd'hui"
+              afterLabel="Ton objectif"
+            />
+
+            {/* Cap + horizon */}
+            {objectif && (
+              <Card>
+                <p className="text-sm font-medium text-text">Ton cap</p>
+                <p className="mt-1 text-sm text-accent">{objectif}</p>
+                <p className="mt-2 text-xs text-text-faint">
+                  Horizon 12 semaines, objectif au {dateStr}
+                </p>
+              </Card>
+            )}
+
+            <p className="text-center text-xs text-signal">
+              Simulation d'objectif, pas une promesse de résultat
+            </p>
+          </div>
+        )}
+
+        {/* Projection placeholder si pas encore dispo */}
+        {!originalUrl && (
           <Card>
             <p className="text-sm font-medium text-text-muted mb-3">
               Ta projection avant/après
             </p>
-            {teaserUrl && originalUrl ? (
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <img src={originalUrl} alt="Avant" className="rounded-[12px] w-full" />
-                  <p className="mt-1 text-center text-xs text-text-faint">Avant</p>
-                </div>
-                <div>
-                  <img src={teaserUrl} alt="Objectif" className="rounded-[12px] w-full blur-sm" />
-                  <p className="mt-1 text-center text-xs text-text-faint">Objectif</p>
-                </div>
-              </div>
-            ) : teaserUrl ? (
-              <img src={teaserUrl} alt="Projection" className="rounded-[12px] w-full blur-sm" />
-            ) : (
-              <div className="h-40 rounded-[12px] bg-surface-2 flex items-center justify-center">
-                <p className="text-sm text-text-faint">Projection en cours de génération...</p>
-              </div>
-            )}
+            <div className="h-40 rounded-[12px] bg-surface-2 flex items-center justify-center">
+              <p className="text-sm text-text-faint">Projection en cours de génération...</p>
+            </div>
             <p className="mt-2 text-xs text-signal text-center">
-              Simulation — objectif visuel, pas une prédiction
+              Simulation d'objectif, pas une promesse de résultat
             </p>
           </Card>
-        </LockedOverlay>
+        )}
 
         {/* Recommendations - 2 visible, rest locked */}
         {result.recommendations.length > 0 && (
@@ -262,37 +306,13 @@ export default function Resultat() {
                   <p className="text-sm text-text">{rec}</p>
                 </div>
               ))}
-              {result.recommendations.length > 2 && (
-                <LockedOverlay ctaLabel="Voir le protocole complet" href="/plus">
-                  <div className="space-y-3">
-                    {result.recommendations.slice(2).map((rec, i) => (
-                      <div key={i} className="flex gap-3 rounded-[12px] border border-border bg-bg p-3">
-                        <svg className="mt-0.5 h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                        </svg>
-                        <p className="text-sm text-text">{rec}</p>
-                      </div>
-                    ))}
-                  </div>
-                </LockedOverlay>
-              )}
             </div>
           </Card>
         )}
 
-        {/* Locked suivi preview */}
-        <LockedOverlay ctaLabel="Débloquer le suivi mensuel" href="/plus">
-          <Card>
-            <p className="text-sm font-medium text-text-muted mb-3">Ton suivi mensuel</p>
-            <div className="h-24 rounded-[12px] bg-surface-2 flex items-center justify-center">
-              <p className="text-sm text-text-faint">Courbe d'évolution du score</p>
-            </div>
-          </Card>
-        </LockedOverlay>
-
-        {/* CTA */}
+        {/* CTA vers mur */}
         <Link href="/plus" onClick={() => trackEvent("unlock_click")}>
-          <Button variant="primary" size="lg">Débloquer mon plan</Button>
+          <Button variant="primary" size="lg">Voir mon plan</Button>
         </Link>
 
         {/* Actions */}

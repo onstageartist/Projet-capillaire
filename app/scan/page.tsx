@@ -1,268 +1,445 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
-import { compressImage } from "@/lib/compress-image";
-import { Button, Checkbox, Disclaimer, ScanAnimation } from "@/components/ui";
+import { Button, Card, Disclaimer } from "@/components/ui";
+import dynamic from "next/dynamic";
 
-const SCAN_STEPS = [
-  "Analyse de la densité…",
-  "Détection des zones fragiles…",
-  "Estimation du stade…",
-  "Construction de ton bilan…",
+const HairScanner = dynamic(() => import("@/components/hair-scanner"), { ssr: false });
+
+type ScanStep = "manque" | "choix" | "capture" | "capture_top" | "processing" | "bilan";
+
+const ANALYSIS_STEPS = [
+  "Détection de la zone capillaire",
+  "Stabilisation pose et lumière",
+  "Segmentation des zones, front, milieu, couronne",
+  "Estimation de la densité par zone",
+  "Repérage de la ligne frontale",
+  "Analyse de la couronne",
+  "Estimation du stade, échelle Norwood",
+  "Calcul de l'indice de couverture",
+  "Génération de ton bilan",
 ];
 
-const MIN_ANIMATION_MS = 4000;
+interface ScanResult {
+  usable: boolean;
+  score: number | null;
+  norwood: string | null;
+  zones: string[];
+  recommendations: string[];
+  message: string;
+  scanId?: string;
+  photoPath?: string;
+}
 
 export default function Scan() {
-  const [consent, setConsent] = useState(false);
-  const [preview, setPreview] = useState("");
-  const [scanning, setScanning] = useState(false);
-  const [animStep, setAnimStep] = useState(0);
+  const [step, setStep] = useState<ScanStep>("manque");
+  const [facePhoto, setFacePhoto] = useState<string | null>(null);
+  const [topPhoto, setTopPhoto] = useState<string | null>(null);
+  const [analysisStep, setAnalysisStep] = useState(0);
+  const [analysisPercent, setAnalysisPercent] = useState(0);
   const [error, setError] = useState("");
-  const fileRef = useRef<File | null>(null);
-  const formRef = useRef<HTMLFormElement>(null);
+  const [result, setResult] = useState<ScanResult | null>(null);
   const router = useRouter();
+  const analysisDone = useRef(false);
 
-  const advanceSteps = useCallback(() => {
-    let step = 0;
-    const interval = setInterval(() => {
-      step++;
-      if (step < SCAN_STEPS.length) {
-        setAnimStep(step);
-      } else {
-        clearInterval(interval);
-      }
-    }, 1200);
-    return () => clearInterval(interval);
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) router.push("/auth?next=/scan");
+    });
+  }, [router]);
+
+  const handleFaceCapture = useCallback((dataUrl: string) => {
+    setFacePhoto(dataUrl);
+    trackEvent("scan_face_captured");
+    setStep("capture_top");
   }, []);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Photo trop lourde (max 10 Mo). Essaie avec une autre.");
-      return;
-    }
-    compressImage(file).then((compressed) => {
-      fileRef.current = compressed;
-      setPreview(URL.createObjectURL(compressed));
-    });
-    setError("");
-  }
+  const handleTopCapture = useCallback((dataUrl: string) => {
+    setTopPhoto(dataUrl);
+    trackEvent("scan_top_captured");
+    setStep("processing");
+  }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!fileRef.current || !consent) return;
+  // Processing animation + API call
+  useEffect(() => {
+    if (step !== "processing" || analysisDone.current) return;
+    analysisDone.current = true;
 
-    setScanning(true);
-    setAnimStep(0);
-    setError("");
+    trackEvent("scan_started");
 
-    const animStart = Date.now();
-    const cleanupAnim = advanceSteps();
+    const stepInterval = setInterval(() => {
+      setAnalysisStep((s) => {
+        if (s < ANALYSIS_STEPS.length - 1) return s + 1;
+        clearInterval(stepInterval);
+        return s;
+      });
+    }, 1800);
 
-    try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push("/auth?next=/scan"); return; }
+    const percentInterval = setInterval(() => {
+      setAnalysisPercent((p) => {
+        if (p >= 95) { clearInterval(percentInterval); return p; }
+        return p + 1;
+      });
+    }, 150);
 
-      // Record photo consent
-      await supabase.from("profiles").upsert(
-        { id: user.id, photo_consent_at: new Date().toISOString() },
-        { onConflict: "id" }
-      ).then(() => {});
+    async function runAnalysis() {
+      try {
+        const photoToSend = facePhoto!;
+        const blob = await fetch(photoToSend).then(r => r.blob());
+        const file = new File([blob], "scan.jpg", { type: "image/jpeg" });
 
-      trackEvent("photo_uploaded");
-      trackEvent("scan_started");
+        const supabase = createClient();
+        await supabase.from("profiles").upsert(
+          { id: (await supabase.auth.getUser()).data.user!.id, photo_consent_at: new Date().toISOString() },
+          { onConflict: "id" }
+        );
 
-      // Send photo to server (handles upload + analysis + DB save)
-      const formData = new FormData();
-      formData.append("photo", fileRef.current);
+        const formData = new FormData();
+        formData.append("photo", file);
+        const res = await fetch("/api/scan", { method: "POST", body: formData });
+        const data = await res.json();
 
-      const res = await fetch("/api/scan", { method: "POST", body: formData });
-      const result = await res.json();
-
-      if (result.error) {
-        trackEvent("scan_failed", { reason: result.error });
-        throw new Error(result.error);
-      }
-
-      if (result.usable === false) {
-        const elapsed = Date.now() - animStart;
-        if (elapsed < MIN_ANIMATION_MS) {
-          await new Promise((r) => setTimeout(r, MIN_ANIMATION_MS - elapsed));
+        if (data.error || data.usable === false) {
+          clearInterval(stepInterval);
+          clearInterval(percentInterval);
+          setError(data.message || data.error || "Photo non exploitable. Réessaie avec plus de lumière.");
+          setStep("manque");
+          analysisDone.current = false;
+          return;
         }
-        cleanupAnim();
-        setScanning(false);
-        setPreview("");
-        fileRef.current = null;
-        if (formRef.current) formRef.current.reset();
-        setError(result.message || "On n'a pas pu lire cette photo. Reprends-en une avec un peu plus de lumière et la zone bien visible.");
-        return;
+
+        setResult(data);
+        setAnalysisPercent(100);
+        setAnalysisStep(ANALYSIS_STEPS.length - 1);
+
+        await new Promise(r => setTimeout(r, 1500));
+
+        trackEvent("scan_completed", { score: data.score });
+        sessionStorage.setItem("scanResult", JSON.stringify(data));
+        if (data.photoPath) sessionStorage.setItem("scanPhotoPath", data.photoPath);
+
+        if (data.scanId && data.photoPath) {
+          fetch("/api/projection", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scanId: data.scanId, photoPath: data.photoPath }),
+          }).catch(() => {});
+        }
+
+        setStep("bilan");
+      } catch {
+        clearInterval(stepInterval);
+        clearInterval(percentInterval);
+        setError("Une erreur est survenue. Réessaie.");
+        setStep("manque");
+        analysisDone.current = false;
       }
-
-      const scanId = result.scanId;
-      const photoPath = result.photoPath;
-
-      // Wait for minimum animation time
-      const elapsed = Date.now() - animStart;
-      if (elapsed < MIN_ANIMATION_MS) {
-        await new Promise((r) => setTimeout(r, MIN_ANIMATION_MS - elapsed));
-      }
-
-      setAnimStep(SCAN_STEPS.length);
-
-      trackEvent("scan_completed", { score: result.score });
-
-      sessionStorage.setItem("scanResult", JSON.stringify(result));
-      if (photoPath) sessionStorage.setItem("scanPhotoPath", photoPath);
-
-      // Trigger projection async (non-blocking)
-      if (scanId && photoPath) {
-        fetch("/api/projection", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scanId, photoPath }),
-        }).catch(() => {});
-      }
-
-      setTimeout(() => router.push("/resultat"), 600);
-    } catch (err: unknown) {
-      cleanupAnim();
-      const msg = err instanceof Error ? err.message : "Une erreur est survenue";
-      setError(msg);
-      setScanning(false);
     }
-  }
 
-  if (scanning) {
+    runAnalysis();
+    return () => { clearInterval(stepInterval); clearInterval(percentInterval); };
+  }, [step, facePhoto, topPhoto]);
+
+  // ─── ÉCRAN 1 : Le manque ───
+  if (step === "manque") {
     return (
       <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
-        <ScanAnimation
-          photoUrl={preview}
-          steps={SCAN_STEPS}
-          currentStep={animStep}
-        />
-      </main>
-    );
-  }
-
-  return (
-    <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
-      <div className="w-full max-w-lg space-y-6 animate-fade-in">
-        <div>
-          <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">
-            Ton scan capillaire
+        <div className="w-full max-w-lg space-y-6 animate-fade-in">
+          <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
+            Tu n'as jamais vraiment mesuré où en sont tes cheveux
           </h1>
-          <p className="mt-2 text-text-muted">
-            Prends une photo de ton cuir chevelu pour obtenir ton bilan.
+          <p className="text-base text-text-muted">
+            Un miroir écrase le relief, une photo ment selon la lumière. Pour décider quoi faire, il te faut une mesure stable de ta densité et de tes zones, pas une impression. C'est ce qu'on va faire, en une photo.
           </p>
-        </div>
 
-        {/* Consent */}
-        <div className="rounded-[16px] border border-border bg-surface p-5 space-y-3">
-          <Checkbox
-            label="J'accepte que ma photo soit analysée pour générer mon bilan. Elle reste privée, hébergée en Europe, et je peux la supprimer quand je veux."
-            checked={consent}
-            onChange={() => setConsent(!consent)}
-          />
-          <Disclaimer />
-        </div>
-
-        {/* Tips */}
-        <div className="rounded-[16px] border border-border bg-surface p-5">
-          <p className="text-sm font-semibold text-text">Pour un bon scan :</p>
-          <ul className="mt-3 space-y-2 text-sm text-text-muted">
-            {[
-              "Bonne lumière, de préférence naturelle",
-              "Cheveux comme d'habitude (ou légèrement écartés)",
-              "Cadre la zone qui t'inquiète",
-              "Pas de casquette, photo nette",
-            ].map((tip) => (
-              <li key={tip} className="flex items-start gap-2">
-                <svg className="mt-0.5 h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-                {tip}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-          <label className={`flex cursor-pointer flex-col items-center justify-center rounded-[16px] border-2 border-dashed p-10 transition-all ${
-            consent
-              ? "border-border bg-surface hover:border-accent hover:bg-accent-soft"
-              : "border-border/50 bg-surface/50 opacity-50 cursor-not-allowed"
-          }`}>
-            {preview ? (
-              <div className="space-y-3 text-center">
-                <img src={preview} alt="Aperçu" className="max-h-64 rounded-[12px]" />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setPreview("");
-                    fileRef.current = null;
-                    if (formRef.current) formRef.current.reset();
-                  }}
-                  className="text-sm text-text-muted hover:text-text"
-                >
-                  Reprendre
-                </button>
-              </div>
-            ) : (
-              <>
-                <svg className="h-12 w-12 text-text-faint" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
-                </svg>
-                <span className="mt-3 text-sm font-medium text-text">
-                  Prendre une photo ou importer
-                </span>
-                <span className="mt-1 text-xs text-text-faint">
-                  JPG, PNG ou WebP
-                </span>
-              </>
-            )}
-            <input
-              type="file"
-              name="photo"
-              accept="image/jpeg,image/png,image/webp"
-              capture="environment"
-              required
-              disabled={!consent}
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </label>
+          {/* Visuel zones */}
+          <div className="flex justify-center">
+            <svg viewBox="0 0 200 160" className="h-40 w-40 text-accent">
+              <ellipse cx="100" cy="78" rx="65" ry="72" fill="none" stroke="var(--line)" strokeWidth="2" />
+              <ellipse cx="33" cy="82" rx="6" ry="14" fill="none" stroke="var(--line)" strokeWidth="1.5" />
+              <ellipse cx="167" cy="82" rx="6" ry="14" fill="none" stroke="var(--line)" strokeWidth="1.5" />
+              <path d="M 50 55 Q 65 25 100 22 Q 135 25 150 55" fill="none" stroke="var(--line)" strokeWidth="1.5" strokeDasharray="4 3" />
+              <ellipse cx="100" cy="52" rx="50" ry="16" fill="var(--accent)" fillOpacity="0.12" stroke="var(--accent)" strokeWidth="1" strokeOpacity="0.4" />
+              <text x="100" y="56" textAnchor="middle" fill="var(--accent)" fontSize="8" fontWeight="600">front</text>
+              <ellipse cx="100" cy="90" rx="30" ry="24" fill="var(--accent)" fillOpacity="0.12" stroke="var(--accent)" strokeWidth="1" strokeOpacity="0.4" />
+              <text x="100" y="94" textAnchor="middle" fill="var(--accent)" fontSize="8" fontWeight="600">couronne</text>
+            </svg>
+          </div>
 
           {error && (
-            <div className="rounded-[12px] border border-danger/20 bg-danger/5 p-3 space-y-2">
+            <div className="rounded-[12px] border border-danger/20 bg-danger/5 p-3">
               <p className="text-sm text-danger">{error}</p>
-              <button
-                type="button"
-                onClick={() => { setError(""); setScanning(false); }}
-                className="text-sm font-medium text-accent hover:underline"
-              >
-                Réessayer
-              </button>
             </div>
           )}
 
           <Button
-            type="submit"
             variant="primary"
             size="lg"
-            disabled={!preview || !consent}
+            onClick={() => {
+              setError("");
+              setStep("choix");
+            }}
+          >
+            Continuer
+          </Button>
+
+          <Disclaimer className="justify-center" />
+        </div>
+      </main>
+    );
+  }
+
+  // ─── ÉCRAN 2 : Le choix cadré ───
+  if (step === "choix") {
+    return (
+      <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
+        <div className="w-full max-w-lg space-y-6 animate-fade-in">
+          <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
+            On passe à ton scan capillaire
+          </h1>
+          <p className="text-base text-text-muted">
+            Ça prend une dizaine de secondes. Tes photos restent privées, et tu peux les supprimer quand tu veux.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Carte rouge : photo simple */}
+            <Card className="border-danger/30 opacity-60">
+              <div className="flex items-center gap-2 mb-2">
+                <svg className="h-5 w-5 text-danger" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+                <span className="text-sm font-semibold text-text">Photo simple</span>
+              </div>
+              <p className="text-xs text-text-faint">Approximatif, dépend de la lumière.</p>
+            </Card>
+
+            {/* Carte verte : scan IA */}
+            <Card className="border-accent/40">
+              <div className="flex items-center gap-2 mb-2">
+                <svg className="h-5 w-5 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+                <span className="text-sm font-semibold text-text">Scan IA</span>
+              </div>
+              <p className="text-xs text-text-faint">Mesure tes zones et estime ta densité.</p>
+            </Card>
+          </div>
+
+          <div className="rounded-[12px] border border-border bg-surface p-4">
+            <ol className="space-y-2 text-sm text-text-muted">
+              <li className="flex gap-2">
+                <span className="font-data font-medium text-accent">1.</span>
+                Autorise l'accès à la caméra.
+              </li>
+              <li className="flex gap-2">
+                <span className="font-data font-medium text-accent">2.</span>
+                Suis le guidage à l'écran.
+              </li>
+            </ol>
+          </div>
+
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => {
+              trackEvent("camera_authorized");
+              setStep("capture");
+            }}
           >
             Lancer le scan
           </Button>
-        </form>
-      </div>
-    </main>
-  );
+
+          <button
+            onClick={() => setStep("manque")}
+            className="block w-full text-center text-sm text-text-muted transition-colors hover:text-text"
+          >
+            Retour
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  // ─── ÉCRAN 5a : Capture face ───
+  if (step === "capture") {
+    return (
+      <main className="flex flex-1 flex-col items-center px-5 py-6">
+        <div className="w-full max-w-lg space-y-4 animate-fade-in">
+          <div className="text-center">
+            <p className="text-sm font-medium text-accent">Prise 1 sur 2</p>
+            <h1 className="font-display text-[22px] font-semibold tracking-[-0.01em] text-text">
+              Cadre le haut de ton crâne
+            </h1>
+          </div>
+
+          <HairScanner
+            phase="face"
+            onCapture={handleFaceCapture}
+            onError={() => {
+              setError("Impossible d'accéder à la caméra. Vérifie les permissions de ton navigateur.");
+              setStep("manque");
+            }}
+          />
+
+          <button
+            onClick={() => setStep("choix")}
+            className="block w-full text-center text-sm text-text-muted transition-colors hover:text-text"
+          >
+            Annuler
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  // ─── ÉCRAN 5b : Capture sommet ───
+  if (step === "capture_top") {
+    return (
+      <main className="flex flex-1 flex-col items-center px-5 py-6">
+        <div className="w-full max-w-lg space-y-4 animate-fade-in">
+          <div className="text-center">
+            <p className="text-sm font-medium text-accent">Prise 2 sur 2</p>
+            <h1 className="font-display text-[22px] font-semibold tracking-[-0.01em] text-text">
+              Penche la tête et montre le sommet
+            </h1>
+          </div>
+
+          <HairScanner
+            phase="top"
+            onCapture={handleTopCapture}
+            onError={() => {
+              setError("Erreur caméra. Réessaie.");
+              setStep("manque");
+            }}
+          />
+
+          <button
+            onClick={() => setStep("capture")}
+            className="block w-full text-center text-sm text-text-muted transition-colors hover:text-text"
+          >
+            Annuler
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  // ─── ÉCRAN 6 : Traitement théâtralisé ───
+  if (step === "processing") {
+    return (
+      <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
+        <div className="w-full max-w-md space-y-8 animate-fade-in text-center">
+          <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">
+            Analyse de ton cuir chevelu
+          </h1>
+
+          {/* Anneau circulaire */}
+          <div className="relative mx-auto h-40 w-40">
+            <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="44" fill="none" stroke="var(--line)" strokeWidth="4" />
+              <circle
+                cx="50" cy="50" r="44"
+                fill="none" stroke="var(--accent)" strokeWidth="4"
+                strokeDasharray={`${analysisPercent * 2.76} 276`}
+                strokeLinecap="round"
+                className="transition-all duration-500"
+              />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center font-data text-[28px] font-medium text-text">
+              {analysisPercent}%
+            </span>
+          </div>
+
+          {/* Checklist */}
+          <div className="space-y-2 text-left">
+            {ANALYSIS_STEPS.map((label, i) => (
+              <div
+                key={label}
+                className={`flex items-center gap-3 rounded-[8px] px-3 py-2 text-sm transition-all duration-500 ${
+                  i < analysisStep
+                    ? "text-accent"
+                    : i === analysisStep
+                    ? "text-text"
+                    : "text-text-faint"
+                }`}
+              >
+                {i < analysisStep ? (
+                  <svg className="h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                ) : i === analysisStep ? (
+                  <span className="h-4 w-4 shrink-0 animate-pulse rounded-full bg-accent" />
+                ) : (
+                  <span className="h-4 w-4 shrink-0 rounded-full border border-line" />
+                )}
+                {label}
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // ─── ÉCRAN 7 : Le bilan livré ───
+  if (step === "bilan" && result) {
+    const zonesCount = result.zones?.length || 0;
+    return (
+      <main className="flex flex-1 flex-col items-center px-5 py-10">
+        <div className="w-full max-w-lg space-y-6 animate-fade-in">
+          <div className="text-center">
+            <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">
+              Ton bilan est prêt
+            </h1>
+            <p className="mt-1 text-sm text-text-muted">
+              On a cartographié tes zones et estimé ta densité.
+            </p>
+          </div>
+
+          <div className="flex justify-center">
+            <span className="rounded-full border border-accent/30 bg-accent/10 px-4 py-1 text-sm font-medium text-accent">
+              Cartographie capillaire, {zonesCount} zone{zonesCount > 1 ? "s" : ""} analysée{zonesCount > 1 ? "s" : ""}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="text-center">
+              <p className="font-data text-[28px] font-medium text-text">{result.score}</p>
+              <p className="text-xs text-text-faint">Score de densité</p>
+            </Card>
+            <Card className="text-center">
+              <p className="font-data text-[28px] font-medium text-accent">{result.norwood || "?"}</p>
+              <p className="text-xs text-text-faint">Stade estimé</p>
+            </Card>
+            <Card className="text-center">
+              <p className="font-data text-[18px] font-medium text-text leading-tight">
+                {result.zones?.slice(0, 2).join(", ") || "Aucune"}
+              </p>
+              <p className="text-xs text-text-faint">Zones à surveiller</p>
+            </Card>
+          </div>
+
+          <p className="text-center text-base text-text-muted">
+            Voyons où tu en es vraiment.
+          </p>
+
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => router.push("/resultat")}
+          >
+            Continuer
+          </Button>
+
+          <Disclaimer className="justify-center" />
+        </div>
+      </main>
+    );
+  }
+
+  return null;
 }

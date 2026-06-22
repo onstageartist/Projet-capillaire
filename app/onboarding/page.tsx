@@ -15,38 +15,63 @@ interface QuizStep {
 
 const QUIZ: QuizStep[] = [
   {
-    question: "Depuis combien de temps tu remarques un changement ?",
-    key: "duree",
-    options: ["Moins d'un an", "1 à 3 ans", "Plus de 3 ans", "Je ne suis pas sûr"],
+    question: "Depuis combien de temps tu remarques que ça se dégarnit ?",
+    key: "anciennete",
+    options: [
+      "Quelques mois",
+      "Un à deux ans",
+      "Plus de deux ans",
+      "Je ne suis pas sûr, c'est ce que je veux savoir",
+    ],
     feedback: "Noté. Plus tu agis tôt, plus c'est simple de suivre l'évolution.",
   },
   {
-    question: "Quelle zone t'inquiète le plus ?",
+    question: "Où ça t'inquiète le plus ?",
     key: "zone",
-    options: ["Les golfes", "Le dessus du crâne", "La ligne frontale", "Un peu partout"],
-    feedback: "OK. Ton scan va justement cartographier cette zone précisément.",
+    options: [
+      "Les golfes, à l'avant",
+      "Le sommet, la couronne",
+      "Toute la zone",
+      "Je n'arrive pas à situer",
+    ],
+    feedback: "OK. Ton scan va justement cartographier cette zone.",
   },
   {
-    question: "Comment tu le vis au quotidien ?",
-    key: "vecu",
-    options: ["Ça me préoccupe souvent", "De temps en temps", "Je veux surtout anticiper"],
-    feedback: "Tu fais bien d'en avoir le coeur net. On va te donner des repères clairs.",
+    question: "Qu'est-ce qui t'amène aujourd'hui ?",
+    key: "declencheur",
+    options: [
+      "Une photo de moi qui m'a choqué",
+      "Une remarque qu'on m'a faite",
+      "Je veux agir avant que ça empire",
+      "Je suis ça depuis un moment",
+    ],
+    feedback: "Compris. On va te donner des repères clairs.",
   },
   {
-    question: "Tu as déjà essayé quelque chose ?",
+    question: "Tu as déjà tenté quelque chose ?",
     key: "deja_essaye",
-    options: ["Non, jamais", "Oui, sans vrai résultat", "Oui, avec un peu de résultat"],
-    feedback: "Compris. On va partir de là où tu en es, sans repartir de zéro.",
+    options: [
+      "Rien pour l'instant",
+      "Shampoings et compléments",
+      "Minoxidil ou finastéride",
+      "Un peu de tout, sans savoir si ça marche",
+    ],
+    feedback: "On va partir de là où tu en es.",
   },
   {
-    question: "C'est quoi ton objectif principal ?",
+    question: "Ton objectif, c'est quoi ?",
     key: "objectif",
-    options: ["Stopper la chute", "Densifier", "Comprendre où j'en suis et suivre"],
-    feedback: "Clair. Tout ton bilan va être orienté vers ça.",
+    options: [
+      "Savoir où j'en suis exactement",
+      "Ralentir la chute",
+      "Reprendre de la densité",
+      "Suivre si mon traitement marche",
+    ],
+    feedback: "Tout ton bilan va être orienté vers ça.",
   },
 ];
 
-const TOTAL_SCREENS = QUIZ.length + 1;
+const TOTAL_SCREENS = QUIZ.length + 2; // 5 questions + transition + account
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);
@@ -60,7 +85,8 @@ export default function Onboarding() {
   }, []);
 
   const progress = ((step + 1) / TOTAL_SCREENS) * 100;
-  const isSignup = step >= QUIZ.length;
+  const isTransition = step === QUIZ.length;
+  const isSignup = step === QUIZ.length + 1;
 
   const saveToServer = useCallback(async (data: Record<string, string>, currentStep: number) => {
     try {
@@ -117,7 +143,7 @@ export default function Onboarding() {
           key={step}
           className={direction === "next" ? "animate-slide-left" : "animate-slide-right"}
         >
-          {!isSignup ? (
+          {!isTransition && !isSignup ? (
             <div className="space-y-6">
               <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
                 {QUIZ[step].question}
@@ -140,18 +166,34 @@ export default function Onboarding() {
                 </p>
               )}
             </div>
+          ) : isTransition ? (
+            <div className="space-y-6">
+              <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
+                On a ce qu'il faut. Reste à mesurer pour de vrai où en sont tes cheveux.
+              </h1>
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => {
+                  trackEvent("quiz_completed");
+                  setDirection("next");
+                  setStep((s) => s + 1);
+                }}
+              >
+                Lancer mon bilan
+              </Button>
+            </div>
           ) : (
             <div className="space-y-6">
               <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
-                Parfait. On a ce qu'il faut pour personnaliser ton bilan.
+                Crée ton espace pour recevoir ton bilan
               </h1>
               <p className="text-base text-text-muted">
-                Crée ton compte en 30 secondes pour lancer ton scan et garder
-                tes résultats.
+                Ton bilan et ton suivi sont liés à ton compte. Trente secondes, et c'est à toi.
               </p>
               <AuthForm mode="signup" onSuccess={handleAuthSuccess} />
               <p className="text-xs text-text-faint">
-                Tes réponses et tes photos restent privées, hébergées en Europe.
+                Tes photos restent privées. Tu peux tout supprimer quand tu veux.
               </p>
             </div>
           )}

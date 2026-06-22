@@ -12,3 +12,4 @@ export { Stepper } from "./stepper";
 export { Badge } from "./badge";
 export { PriceCard } from "./price-card";
 export { ScanAnimation } from "./scan-animation";
+export { ImageSlider } from "./image-slider";
