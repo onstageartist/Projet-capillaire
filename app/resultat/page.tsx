@@ -81,9 +81,16 @@ export default function Resultat() {
   useEffect(() => {
     trackEvent("result_viewed");
 
+    // Check client-side projection first
+    const clientProjection = sessionStorage.getItem("clientProjection");
+    const clientOriginal = sessionStorage.getItem("clientOriginal");
+    if (clientOriginal) setOriginalUrl(clientOriginal);
+    if (clientProjection) setFullProjectionUrl(clientProjection);
+
     const supabase = createClient();
 
     async function loadProjection(userId: string, scanId: string) {
+      // Server-side projection overrides client-side if available
       const { data: proj } = await supabase
         .from("projections")
         .select("teaser_path, full_path, status")
@@ -106,12 +113,14 @@ export default function Resultat() {
         }
       }
 
-      const photoPath = sessionStorage.getItem("scanPhotoPath");
-      if (photoPath) {
-        const { data: origUrl } = await supabase.storage
-          .from("scalp-photos")
-          .createSignedUrl(photoPath, 3600);
-        if (origUrl?.signedUrl) setOriginalUrl(origUrl.signedUrl);
+      if (!clientOriginal) {
+        const photoPath = sessionStorage.getItem("scanPhotoPath");
+        if (photoPath) {
+          const { data: origUrl } = await supabase.storage
+            .from("scalp-photos")
+            .createSignedUrl(photoPath, 3600);
+          if (origUrl?.signedUrl) setOriginalUrl(origUrl.signedUrl);
+        }
       }
 
       setProjectionLoading(false);

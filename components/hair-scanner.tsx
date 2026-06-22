@@ -48,6 +48,8 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
   const capturingRef = useRef(false);
   const phaseRef = useRef(0);
   const landmarksRef = useRef<Landmark[] | null>(null);
+  const lastMaskRef = useRef<Uint8Array | null>(null);
+  const lastMaskSizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
 
   const [status, setStatus] = useState<"loading" | "ready" | "aligning" | "captured" | "error">("loading");
   const [loadingMsg, setLoadingMsg] = useState("Préparation de la caméra...");
@@ -63,8 +65,24 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
     const c = captureRef.current!;
     c.width = video.videoWidth;
     c.height = video.videoHeight;
-    c.getContext("2d")!.drawImage(video, 0, 0, c.width, c.height);
+    const cCtx = c.getContext("2d")!;
+    cCtx.drawImage(video, 0, 0, c.width, c.height);
     const dataUrl = c.toDataURL("image/jpeg", 0.92);
+
+    // Generate client-side projection for first capture (face photo)
+    if (photosRef.current.length === 0 && lastMaskRef.current) {
+      try {
+        const projection = generateProjection(
+          cCtx, lastMaskRef.current,
+          lastMaskSizeRef.current.w, lastMaskSizeRef.current.h,
+          c.width, c.height
+        );
+        sessionStorage.setItem("clientProjection", projection);
+        sessionStorage.setItem("clientOriginal", dataUrl);
+      } catch {
+        // projection generation failed, continue without
+      }
+    }
 
     setFlash(true);
     setTimeout(() => setFlash(false), 300);
@@ -137,9 +155,14 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           }
 
           ctx.putImageData(img, 0, 0);
+
+          // Save mask for projection generation
+          lastMaskRef.current = new Uint8Array(data);
+          lastMaskSizeRef.current = { w: mask.width, h: mask.height };
+
           mask.close();
 
-          // Draw face mesh on top of hair overlay
+          // Draw face mesh
           const lm = landmarksRef.current;
           if (lm) {
             drawFaceMesh(ctx, lm, overlay.width, overlay.height);
@@ -165,7 +188,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         // frame skip
       }
 
-      // Face detection (throttled, separate from segmenter)
+      // Face detection (throttled)
       const face = faceRef.current;
       if (face && now - lastFaceTimeRef.current > FACE_DETECT_INTERVAL) {
         lastFaceTimeRef.current = now;
@@ -213,7 +236,6 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
 
         const vision = await FilesetResolver.forVisionTasks(WASM);
 
-        // Segmenter (GPU → CPU fallback)
         try {
           segmenterRef.current = await ImageSegmenter.createFromOptions(vision, {
             baseOptions: { modelAssetPath: HAIR_MODEL, delegate: "GPU" },
@@ -230,7 +252,6 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           });
         }
 
-        // Face Landmarker for mesh (GPU → CPU fallback, optional)
         try {
           faceRef.current = await FaceLandmarker.createFromOptions(vision, {
             baseOptions: { modelAssetPath: FACE_MODEL, delegate: "GPU" },
@@ -294,7 +315,6 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
 
         {flash && <div className="absolute inset-0 bg-white/30 transition-opacity duration-300" />}
 
-        {/* Progress ring */}
         {status === "aligning" && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <svg className="h-48 w-48" viewBox="0 0 100 100">
@@ -377,7 +397,6 @@ function drawFaceMesh(
   }
   ctx.stroke();
 
-  // Face oval contour slightly brighter
   const oval = FaceLandmarker.FACE_LANDMARKS_FACE_OVAL;
   if (!oval) return;
   ctx.strokeStyle = "rgba(22, 185, 129, 0.35)";
@@ -391,4 +410,109 @@ function drawFaceMesh(
   }
   ctx.closePath();
   ctx.stroke();
+}
+
+function generateProjection(
+  photoCtx: CanvasRenderingContext2D,
+  maskData: Uint8Array,
+  maskW: number,
+  maskH: number,
+  photoW: number,
+  photoH: number,
+): string {
+  const imageData = photoCtx.getImageData(0, 0, photoW, photoH);
+  const px = imageData.data;
+
+  // Scale factors (mask may be 256x256, photo may be 1280x720)
+  const sx = maskW / photoW;
+  const sy = maskH / photoH;
+
+  // Compute average hair color
+  let rSum = 0, gSum = 0, bSum = 0, count = 0;
+  for (let y = 0; y < photoH; y += 2) {
+    for (let x = 0; x < photoW; x += 2) {
+      const mx = Math.floor(x * sx);
+      const my = Math.floor(y * sy);
+      if (maskData[my * maskW + mx] === HAIR_CLASS) {
+        const p = (y * photoW + x) * 4;
+        rSum += px[p]; gSum += px[p + 1]; bSum += px[p + 2];
+        count++;
+      }
+    }
+  }
+  if (count === 0) return photoCtx.canvas.toDataURL("image/jpeg", 0.92);
+
+  const avgR = rSum / count;
+  const avgG = gSum / count;
+  const avgB = bSum / count;
+
+  // Create hair mask at photo resolution on an offscreen canvas
+  const hairCanvas = document.createElement("canvas");
+  hairCanvas.width = photoW;
+  hairCanvas.height = photoH;
+  const hCtx = hairCanvas.getContext("2d")!;
+  const hairImg = hCtx.createImageData(photoW, photoH);
+
+  for (let y = 0; y < photoH; y++) {
+    for (let x = 0; x < photoW; x++) {
+      const mx = Math.floor(x * sx);
+      const my = Math.floor(y * sy);
+      const p = (y * photoW + x) * 4;
+      if (maskData[my * maskW + mx] === HAIR_CLASS) {
+        hairImg.data[p] = Math.round(avgR * 0.7);
+        hairImg.data[p + 1] = Math.round(avgG * 0.7);
+        hairImg.data[p + 2] = Math.round(avgB * 0.7);
+        hairImg.data[p + 3] = 255;
+      }
+    }
+  }
+  hCtx.putImageData(hairImg, 0, 0);
+
+  // Blur to expand hair area naturally
+  const blurCanvas = document.createElement("canvas");
+  blurCanvas.width = photoW;
+  blurCanvas.height = photoH;
+  const bCtx = blurCanvas.getContext("2d")!;
+  bCtx.filter = "blur(12px)";
+  bCtx.drawImage(hairCanvas, 0, 0);
+
+  // Compose: original + blurred hair overlay
+  const resultCanvas = document.createElement("canvas");
+  resultCanvas.width = photoW;
+  resultCanvas.height = photoH;
+  const rCtx = resultCanvas.getContext("2d")!;
+
+  // Draw original
+  rCtx.drawImage(photoCtx.canvas, 0, 0);
+
+  // Darken existing hair slightly (density effect)
+  const darkCanvas = document.createElement("canvas");
+  darkCanvas.width = photoW;
+  darkCanvas.height = photoH;
+  const dCtx = darkCanvas.getContext("2d")!;
+  const darkImg = dCtx.createImageData(photoW, photoH);
+  for (let y = 0; y < photoH; y++) {
+    for (let x = 0; x < photoW; x++) {
+      const mx = Math.floor(x * sx);
+      const my = Math.floor(y * sy);
+      const p = (y * photoW + x) * 4;
+      if (maskData[my * maskW + mx] === HAIR_CLASS) {
+        darkImg.data[p] = Math.round(px[p] * 0.85);
+        darkImg.data[p + 1] = Math.round(px[p + 1] * 0.85);
+        darkImg.data[p + 2] = Math.round(px[p + 2] * 0.85);
+        darkImg.data[p + 3] = 255;
+      }
+    }
+  }
+  dCtx.putImageData(darkImg, 0, 0);
+  rCtx.globalCompositeOperation = "source-over";
+  rCtx.globalAlpha = 0.4;
+  rCtx.drawImage(darkCanvas, 0, 0);
+
+  // Add blurred hair expansion
+  rCtx.globalAlpha = 0.3;
+  rCtx.drawImage(blurCanvas, 0, 0);
+  rCtx.globalAlpha = 1.0;
+
+  return resultCanvas.toDataURL("image/jpeg", 0.90);
 }
