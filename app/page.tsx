@@ -4,6 +4,9 @@ import Link from "next/link";
 import { Gauge, Reveal, ScoreMark } from "@/components/ui";
 import SmoothScroll from "@/components/smooth-scroll";
 import { HeroPreview } from "@/components/landing/hero-preview";
+import { TrustBar } from "@/components/landing/trust-bar";
+import { StatsBand } from "@/components/landing/stats-band";
+import { Reassurance } from "@/components/landing/reassurance";
 import SiteFooter from "@/components/site-footer";
 import { trackEvent } from "@/lib/track";
 import { useEffect, useState, useRef } from "react";
@@ -141,6 +144,12 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Technologie + conformité */}
+      <TrustBar />
+
+      {/* Stats produit */}
+      <StatsBand />
+
       {/* Comment ça marche */}
       <section id="comment" className="scroll-mt-20 px-5 py-20 sm:py-24">
         <div className="mx-auto max-w-3xl">
@@ -226,6 +235,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Confidentialité et réassurance */}
+      <Reassurance />
 
       {/* Preuve sociale (slot honnête) */}
       <section className="border-y border-border bg-surface/40 px-5 py-16">

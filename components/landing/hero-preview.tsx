@@ -1,16 +1,44 @@
 "use client";
 
+import { useRef } from "react";
 import { Gauge } from "@/components/ui";
 
 /**
  * Ancrage visuel du hero : un aperçu produit (la carte de bilan) qui montre
  * concretement ce que l'utilisateur recoit. Donnees d'exemple, badge simulation.
+ * Profondeur premium : glow doux + leger tilt au pointeur (souris uniquement).
  */
 export function HeroPreview() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  function onMove(e: React.PointerEvent) {
+    const el = ref.current;
+    if (!el || e.pointerType !== "mouse") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const r = el.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    el.style.transform = `perspective(1100px) rotateY(${px * 5}deg) rotateX(${-py * 5}deg)`;
+  }
+  function onLeave() {
+    if (ref.current) ref.current.style.transform = "perspective(1100px) rotateX(0deg) rotateY(0deg)";
+  }
+
   return (
-    <div className="relative mx-auto w-full max-w-md">
-      {/* Carte bilan */}
-      <div className="rounded-[var(--radius-xl)] border border-border bg-surface p-6 shadow-pop">
+    <div className="relative mx-auto w-full max-w-md [perspective:1100px]">
+      {/* Glow de fond tres doux */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-10 -z-10 opacity-70"
+        style={{ background: "radial-gradient(50% 45% at 50% 35%, var(--accent-soft), transparent 70%)" }}
+      />
+      {/* Carte bilan (tilt au pointeur) */}
+      <div
+        ref={ref}
+        onPointerMove={onMove}
+        onPointerLeave={onLeave}
+        className="rounded-[var(--radius-xl)] border border-border bg-surface p-6 shadow-pop transition-transform duration-200 ease-out [transform:perspective(1100px)] will-change-transform"
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-accent">

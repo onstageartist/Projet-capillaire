@@ -33,11 +33,11 @@ export function CountUp({ value, duration = 1100, suffix = "", className = "" }:
       return;
     }
 
+    let raf = 0;
     const run = () => {
       if (started.current) return;
       started.current = true;
       const start = performance.now();
-      let raf = 0;
       const tick = (now: number) => {
         const t = Math.min((now - start) / duration, 1);
         const ease = 1 - Math.pow(1 - t, 3);
@@ -45,8 +45,13 @@ export function CountUp({ value, duration = 1100, suffix = "", className = "" }:
         if (t < 1) raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(raf);
     };
+
+    // Deja visible au chargement : on lance tout de suite (l'anim joue quand meme).
+    if (el.getBoundingClientRect().top < window.innerHeight * 0.92) {
+      run();
+      return () => cancelAnimationFrame(raf);
+    }
 
     const obs = new IntersectionObserver(
       (entries) => {
@@ -60,7 +65,7 @@ export function CountUp({ value, duration = 1100, suffix = "", className = "" }:
       { threshold: 0.4 }
     );
     obs.observe(el);
-    return () => obs.disconnect();
+    return () => { obs.disconnect(); cancelAnimationFrame(raf); };
   }, [value, duration]);
 
   return (
