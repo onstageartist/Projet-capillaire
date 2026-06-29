@@ -253,17 +253,52 @@ export default function Scan() {
             </Card>
           </div>
 
+          {/* Mode d'emploi visuel : on montre les 3 prises AVANT d'ouvrir la
+              camera, pour que personne ne soit perdu (moins de bugs, plus rapide). */}
           <div className="rounded-[12px] border border-border bg-surface p-4">
-            <ol className="space-y-2 text-sm text-text-muted">
-              <li className="flex gap-2">
-                <span className="font-data font-medium text-accent">1.</span>
-                Autorise l'accès à la caméra.
-              </li>
-              <li className="flex gap-2">
-                <span className="font-data font-medium text-accent">2.</span>
-                Suis le guidage à l'écran.
-              </li>
-            </ol>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-faint">
+              3 prises, ~10 secondes — le guidage te dit tout à l'écran
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                {
+                  n: "1", label: "Face", hint: "Visage droit, regarde la caméra",
+                  icon: (
+                    <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="24" cy="22" r="11" />
+                      <path d="M14 19q10 -7 20 0" />
+                      <path d="M24 40v-5" />
+                    </g>
+                  ),
+                },
+                {
+                  n: "2", label: "Dessus", hint: "Penche la tête vers l'avant",
+                  icon: (
+                    <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M13 30q11 -16 22 0" />
+                      <path d="M13 30q11 9 22 0" />
+                      <path d="M24 8v8m0 0l-4-4m4 4l4-4" />
+                    </g>
+                  ),
+                },
+                {
+                  n: "3", label: "Recul", hint: "Recule, montre toute ta tête",
+                  icon: (
+                    <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="24" cy="20" r="8" />
+                      <path d="M12 40q12 -14 24 0" />
+                      <path d="M6 24h4M38 24h4" />
+                    </g>
+                  ),
+                },
+              ].map((s) => (
+                <div key={s.n} className="flex flex-col items-center gap-1.5 rounded-[10px] bg-surface-2 p-2.5 text-center">
+                  <svg viewBox="0 0 48 48" className="h-10 w-10 text-accent" aria-hidden="true">{s.icon}</svg>
+                  <span className="text-xs font-semibold text-text">{s.n}. {s.label}</span>
+                  <span className="text-[11px] leading-tight text-text-faint">{s.hint}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Consentement explicite avant la camera (donnees de sante, RGPD) */}

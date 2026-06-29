@@ -628,6 +628,19 @@ export default function HairScanner({ onAllCaptured }: Props) {
           </svg>
         )}
 
+        {/* Repere visuel phase 2 (dessus) : on indique de pencher la tete vers
+            l'avant pour exposer la couronne, tant que ce n'est pas bon. */}
+        {phase === 1 && status !== "aligning" && (
+          <div className="pointer-events-none absolute left-1/2 top-6 flex -translate-x-1/2 flex-col items-center gap-1">
+            <svg className="h-9 w-9 animate-bounce text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v13m0 0l-5-5m5 5l5-5" />
+            </svg>
+            <span className="rounded-full bg-ink/70 px-2.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
+              Penche le dessus de ta tête vers la caméra
+            </span>
+          </div>
+        )}
+
         {flash && <div className="absolute inset-0 bg-white/30 transition-opacity duration-300" />}
 
         {status === "aligning" && (

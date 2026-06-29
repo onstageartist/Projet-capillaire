@@ -3,14 +3,8 @@ import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { trackEventServer } from "@/lib/track-server";
-
-// Prompt definitif : on ne modifie QUE les cheveux dans la zone masquee,
-// amelioration realiste et atteignable, jamais une restauration miraculeuse.
-const AFTER_PROMPT = `Photorealistic editorial close up portrait of the exact same man. Keep his face, skin tone, age, ethnicity, head shape, ears, expression, camera angle and lighting perfectly identical and untouched. Only modify the hair inside the masked scalp area. In the thinning and receding regions, render natural healthy hair that exactly matches his own hair color, texture, thickness and growth direction, with a realistic and believable increase in density and coverage. It must look like the same person a few months later after a modest natural improvement, never a hair transplant and never a full restoration. Preserve the original hairline shape, only slightly fuller and cleaner. Seamless natural blend with the existing hair at every edge, no visible border. Match the original lighting direction, contrast and facial symmetry exactly. Keep the natural skin texture, pores and the original phone photo look, do not smooth, retouch, beautify or airbrush the skin, keep realistic imperfections. Keep the change subtle and believable rather than dramatic. True to life photography, soft realistic lighting. No hat, no wig, no hairstyle change, no makeup change, no text, no logo, no watermark.`;
-
-const NEGATIVE_PROMPT = `different person, changed face, distorted face, cartoon, illustration, 3d render, plastic skin, smoothed skin, airbrushed, beautified, glamour retouch, over polished, doll hair, fake wig, helmet hair, unrealistic full head of hair on a bald scalp, miraculous restoration, dense hair on a Norwood 6 crown, oversaturated, blurry, low quality, artifacts, extra ears, warped features, text, watermark, logo`;
-
-const PROMPT_VERSION = "projection-v2-inpaint";
+// Prompts centralisés et documentés (voir lib/projection-prompt.ts + docs/PROMPT-PROJECTION.md).
+import { AFTER_PROMPT, NEGATIVE_PROMPT, PROMPT_VERSION } from "@/lib/projection-prompt";
 
 // Garde anti-abus : max de generations par utilisateur sur une fenetre.
 // L'idempotence par scanId evite deja les doublons ; ceci borne le cout global.
