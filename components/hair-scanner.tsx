@@ -69,9 +69,8 @@ function buildInpaintMask(hairMask: Uint8Array, width: number, height: number): 
 }
 
 const PHASES = [
-  { title: "Scan 1 sur 3 · Visage", heading: "Regarde la caméra, visage bien droit", label: "Scan du front en cours", auto: true },
-  { title: "Scan 2 sur 3 · Dessus de la tête", heading: "Penche la tête vers l'avant", label: "Scan du dessus en cours", auto: true },
-  { title: "Photo 3 sur 3 · Tête entière", heading: "Recule pour montrer ta tête entière", label: "Appuie pour prendre la photo", auto: false },
+  { title: "Scan 1 sur 2 · Visage", heading: "Regarde la caméra, visage bien droit", label: "Scan du front en cours", auto: true },
+  { title: "Scan 2 sur 2 · Dessus de la tête", heading: "Penche la tête vers l'avant", label: "Scan du dessus en cours", auto: true },
 ];
 
 type Landmark = { x: number; y: number; z: number };
@@ -717,18 +716,6 @@ export default function HairScanner({ onAllCaptured }: Props) {
               strokeDasharray={status === "aligning" ? "none" : "3 2.5"}
               className="transition-colors duration-300"
             />
-          </svg>
-        )}
-
-        {/* Repere de cadrage phase 3 (portrait) : place ta tete entiere dans le
-            gabarit. Ce portrait nourrit l'avant/apres -> bon cadrage = bon rendu. */}
-        {phase === 2 && (
-          <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <ellipse
-              cx="50" cy="40" rx="22" ry="29"
-              fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="0.7" strokeDasharray="3 2.5"
-            />
-            <path d="M28 86 Q50 64 72 86" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="0.7" strokeDasharray="3 2.5" />
           </svg>
         )}
 

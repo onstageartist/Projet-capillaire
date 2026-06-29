@@ -55,10 +55,12 @@ export default function Scan() {
 
   const handleAllCaptured = useCallback((capturedPhotos: string[], capturedMasks: string[]) => {
     setPhotos(capturedPhotos);
-    // La prise portrait (3e) est l'avant ; son masque sert a l'inpainting.
-    if (capturedPhotos[2]) {
-      sessionStorage.setItem("portraitPhoto", capturedPhotos[2]);
-      sessionStorage.setItem("portraitMask", capturedMasks?.[2] || "");
+    // La prise VISAGE (1re, de face) est l'avant : c'est la plus nette, la plus
+    // parlante (on s'identifie à son visage) et la zone de transformation la plus
+    // visible (ligne frontale, tempes). Son masque sert à l'inpainting.
+    if (capturedPhotos[0]) {
+      sessionStorage.setItem("portraitPhoto", capturedPhotos[0]);
+      sessionStorage.setItem("portraitMask", capturedMasks?.[0] || "");
     }
     trackEvent("scan_captured", { photos: capturedPhotos.length });
     setStep("processing");
@@ -279,13 +281,13 @@ export default function Scan() {
             Une dizaine de secondes. Tes photos restent privées, supprimables quand tu veux.
           </p>
 
-          {/* Mode d'emploi visuel : on montre les 3 prises AVANT d'ouvrir la
+          {/* Mode d'emploi visuel : on montre les 2 prises AVANT d'ouvrir la
               camera, pour que personne ne soit perdu (moins de bugs, plus rapide). */}
           <div className="rounded-[12px] border border-border bg-surface p-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-faint">
-              3 prises, ~10 secondes — le guidage te dit tout à l'écran
+              2 prises rapides — l'écran te guide à chaque étape
             </p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {[
                 {
                   n: "1", label: "Visage", hint: "Visage droit, regarde la caméra",
@@ -298,22 +300,12 @@ export default function Scan() {
                   ),
                 },
                 {
-                  n: "2", label: "Dessus", hint: "Penche la tête vers l'avant",
+                  n: "2", label: "Dessus de la tête", hint: "Penche la tête vers l'avant",
                   icon: (
                     <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M13 30q11 -16 22 0" />
                       <path d="M13 30q11 9 22 0" />
                       <path d="M24 8v8m0 0l-4-4m4 4l4-4" />
-                    </g>
-                  ),
-                },
-                {
-                  n: "3", label: "Tête entière", hint: "Recule, montre toute ta tête",
-                  icon: (
-                    <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="24" cy="20" r="8" />
-                      <path d="M12 40q12 -14 24 0" />
-                      <path d="M6 24h4M38 24h4" />
                     </g>
                   ),
                 },
