@@ -95,6 +95,16 @@ export default function Scan() {
         // Compresse avant l'envoi : moins de data, upload plus rapide, coût IA réduit.
         const file = await compressImage(raw);
 
+        // 2e angle : le dessus du crâne (étape 2), clé pour juger le vertex/la
+        // couronne. On l'envoie aussi à l'IA pour une estimation plus juste.
+        let topFile: File | null = null;
+        if (photos[1] && photos[1] !== photos[0]) {
+          try {
+            const tBlob = await fetch(photos[1]).then(r => r.blob());
+            topFile = await compressImage(new File([tBlob], "scan-top.jpg", { type: "image/jpeg" }));
+          } catch { topFile = null; }
+        }
+
         const supabase = createClient();
         await supabase.from("profiles").upsert(
           { id: (await supabase.auth.getUser()).data.user!.id, photo_consent_at: new Date().toISOString() },
@@ -103,6 +113,7 @@ export default function Scan() {
 
         const formData = new FormData();
         formData.append("photo", file);
+        if (topFile) formData.append("photo_top", topFile);
         const res = await fetch("/api/scan", { method: "POST", body: formData });
         if (!res.ok && res.status !== 200) {
           clearInterval(stepInterval);

@@ -23,7 +23,10 @@ CADRE ABSOLU :
 - Tes estimations sont indicatives, pas des vérités cliniques.
 - Ton ton est bienveillant et encourageant, en français, en tutoiement. Jamais culpabilisant, jamais alarmiste, jamais de body-shaming.
 
-CE QUE TU ÉVALUES À PARTIR DE LA PHOTO :
+PHOTOS REÇUES :
+- Tu reçois 1 ou 2 photos du MÊME utilisateur : la 1re de face (front, golfes, ligne frontale), la 2e (si présente) prise du DESSUS du crâne (vertex, couronne). Combine les deux angles pour une estimation plus juste, surtout pour la couronne. Si une seule photo, fais au mieux avec elle.
+
+CE QUE TU ÉVALUES À PARTIR DE LA/DES PHOTO(S) :
 - Une estimation de densité capillaire sur 100 (100 = très dense).
 - Un stade indicatif sur l'échelle de Norwood, de I à VII.
 - Les zones qui semblent concernées (golfes, ligne frontale, vertex, dessus du crâne, tempes, ou général).
@@ -71,16 +74,24 @@ function validateResult(obj: Record<string, unknown>): AnalysisResult | null {
   };
 }
 
+type ScanImage = { base64: string; mediaType: string };
+
 async function callAnalysis(
   client: Anthropic,
-  base64: string,
-  mediaType: string,
+  images: ScanImage[],
   model: string,
   strict = false
 ): Promise<AnalysisResult> {
   const userText = strict
-    ? "Réponds UNIQUEMENT avec le JSON valide demandé, rien d'autre. Analyse cette photo de cuir chevelu."
-    : "Analyse cette photo de cuir chevelu.";
+    ? "Réponds UNIQUEMENT avec le JSON valide demandé, rien d'autre. Analyse ces photos de cuir chevelu."
+    : images.length > 1
+      ? "Analyse ces photos (face + dessus du crâne) du même cuir chevelu."
+      : "Analyse cette photo de cuir chevelu.";
+
+  const imageBlocks = images.map((im) => ({
+    type: "image" as const,
+    source: { type: "base64" as const, media_type: im.mediaType as "image/jpeg", data: im.base64 },
+  }));
 
   const response = await client.messages.create({
     model,
@@ -91,10 +102,7 @@ async function callAnalysis(
       {
         role: "user",
         content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: mediaType as "image/jpeg", data: base64 },
-          },
+          ...imageBlocks,
           { type: "text", text: userText },
         ],
       },
@@ -157,6 +165,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get("photo") as File | null;
+    const fileTop = formData.get("photo_top") as File | null;
 
     if (!file) return NextResponse.json({ error: "Aucune photo envoyée" }, { status: 400 });
     if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: "Photo trop lourde (max 10 Mo)" }, { status: 400 });
@@ -170,14 +179,21 @@ export async function POST(request: Request) {
     const base64 = Buffer.from(bytes).toString("base64");
     const mediaType = file.type || "image/jpeg";
 
+    // Image du dessus du crâne (optionnelle) : on l'ajoute à l'analyse si valide.
+    const images: ScanImage[] = [{ base64, mediaType }];
+    if (fileTop && fileTop.size > 0 && fileTop.size <= 10 * 1024 * 1024 && ALLOWED.includes(fileTop.type)) {
+      const topBytes = await fileTop.arrayBuffer();
+      images.push({ base64: Buffer.from(topBytes).toString("base64"), mediaType: fileTop.type });
+    }
+
     const model = process.env.SCAN_MODEL || "claude-haiku-4-5-20251001";
     const client = new Anthropic({ apiKey, timeout: 30_000 });
 
     let result: AnalysisResult;
     try {
-      result = await callAnalysis(client, base64, mediaType, model);
+      result = await callAnalysis(client, images, model);
     } catch {
-      result = await callAnalysis(client, base64, mediaType, model, true);
+      result = await callAnalysis(client, images, model, true);
     }
 
     // Save scan to database + upload photo server-side
