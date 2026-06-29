@@ -45,7 +45,7 @@ export function TrustBar() {
         <div className="mx-auto mt-8 flex max-w-3xl flex-wrap items-center justify-center gap-x-7 gap-y-3 border-t border-border pt-7">
           {BADGES.map((b) => (
             <span key={b.label} className="flex items-center gap-2 text-sm text-text-muted">
-              <svg className="h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={1.7} stroke="currentColor">
+              <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={1.7} stroke="currentColor">
                 {b.icon}
               </svg>
               {b.label}

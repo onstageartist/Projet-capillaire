@@ -19,8 +19,7 @@ export default function CGU() {
           </h2>
           <p>
             Les présentes conditions régissent l'utilisation du service Scalpy,
-            accessible à l'adresse
-            projet-capillaire-production.up.railway.app. En utilisant le
+            accessible à l'adresse www.scalpy-app.com. En utilisant le
             service, tu acceptes ces conditions dans leur intégralité.
           </p>
         </section>

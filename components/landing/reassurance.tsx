@@ -35,7 +35,7 @@ export function Reassurance() {
           {CARDS.map((c, i) => (
             <Reveal key={c.title} delay={i * 90} className="rounded-[var(--radius-lg)] border border-border bg-bg p-6 shadow-card">
               <span className="inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-accent-soft text-accent">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.7} stroke="currentColor">{c.icon}</svg>
+                <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.7} stroke="currentColor">{c.icon}</svg>
               </span>
               <h3 className="mt-4 text-[17px] font-semibold text-text">{c.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-text-muted">{c.desc}</p>
