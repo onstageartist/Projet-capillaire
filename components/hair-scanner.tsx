@@ -69,9 +69,9 @@ function buildInpaintMask(hairMask: Uint8Array, width: number, height: number): 
 }
 
 const PHASES = [
-  { title: "Scan 1 sur 3 · Face", heading: "Regarde la caméra, visage bien droit", label: "Scan du front et des golfes en cours", auto: true },
-  { title: "Scan 2 sur 3 · Dessus", heading: "Penche la tête vers l'avant", label: "Scan de la couronne et du vertex en cours", auto: true },
-  { title: "Photo 3 sur 3 · Portrait", heading: "Recule pour montrer ta tête entière", label: "Appuie pour prendre la photo", auto: false },
+  { title: "Scan 1 sur 3 · Visage", heading: "Regarde la caméra, visage bien droit", label: "Scan du front en cours", auto: true },
+  { title: "Scan 2 sur 3 · Dessus de la tête", heading: "Penche la tête vers l'avant", label: "Scan du dessus en cours", auto: true },
+  { title: "Photo 3 sur 3 · Tête entière", heading: "Recule pour montrer ta tête entière", label: "Appuie pour prendre la photo", auto: false },
 ];
 
 type Landmark = { x: number; y: number; z: number };
@@ -104,7 +104,7 @@ function analyzeFace(
   if (faceFrac > 0.74) return { msg: "Recule un peu", ready: false };
   if (Math.abs(cx - 0.5) > 0.2 || Math.abs(cy - 0.46) > 0.22)
     return { msg: "Centre ton visage dans le cadre", ready: false };
-  if (tilted) return { msg: "Tiens ta tete bien droite, regarde la camera", ready: false };
+  if (tilted) return { msg: "Tiens ta tête bien droite, regarde la caméra", ready: false };
   return { msg: "Parfait, ne bouge plus", ready: true };
 }
 
@@ -435,7 +435,7 @@ export default function HairScanner({ onAllCaptured }: Props) {
             } else {
               const a = analyzeFace(lm, matrixRef.current);
               if (a.ready && ratio < 0.03) {
-                msg = "Montre le haut de ta tete et tes golfes";
+                msg = "Montre le haut de ton front";
               } else {
                 msg = a.msg;
                 ready = a.ready;
@@ -447,16 +447,16 @@ export default function HairScanner({ onAllCaptured }: Props) {
             // cheveux dans le cadre. Sinon on guide vers le bon geste.
             const faceVisible = !!landmarksRef.current;
             if (ratio < MIN_HAIR_RATIO) {
-              msg = "Penche le dessus de ta tete vers la camera";
+              msg = "Penche ta tête vers la caméra";
             } else if (faceVisible) {
-              msg = "Penche un peu plus, montre le dessus du crane";
+              msg = "Penche un peu plus la tête";
             } else {
               msg = "Parfait, ne bouge plus";
               ready = true;
             }
           } else {
             // Phase portrait : manuelle, on cadre puis on appuie.
-            msg = "Recule pour cadrer toute ta tete, puis appuie sur le bouton";
+            msg = "Recule pour cadrer toute ta tête, puis appuie";
           }
 
           // Lumiere en direct prioritaire : sans bonne lumiere, rien d'autre ne
@@ -787,7 +787,7 @@ export default function HairScanner({ onAllCaptured }: Props) {
           )}
           {struggling && status === "ready" && (
             <span className="max-w-[92%] rounded-full bg-amber-500/85 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
-              Détection difficile · mets-toi face à une lumière, ou appuie pour prendre la photo
+              Mets-toi face à une lumière — ou appuie pour prendre la photo
             </span>
           )}
           {status === "captured" && (
@@ -826,7 +826,7 @@ export default function HairScanner({ onAllCaptured }: Props) {
           onClick={() => importRef.current?.click()}
           className="text-xs text-text-muted underline-offset-2 transition-colors hover:text-text hover:underline"
         >
-          La caméra coince ? Importer une photo
+          La caméra ne marche pas ? Importer une photo
         </button>
       </div>
       <input

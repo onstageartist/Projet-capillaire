@@ -288,7 +288,7 @@ export default function Scan() {
             <div className="grid grid-cols-3 gap-2">
               {[
                 {
-                  n: "1", label: "Face", hint: "Visage droit, regarde la caméra",
+                  n: "1", label: "Visage", hint: "Visage droit, regarde la caméra",
                   icon: (
                     <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="24" cy="22" r="11" />
@@ -308,7 +308,7 @@ export default function Scan() {
                   ),
                 },
                 {
-                  n: "3", label: "Recul", hint: "Recule, montre toute ta tête",
+                  n: "3", label: "Tête entière", hint: "Recule, montre toute ta tête",
                   icon: (
                     <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="24" cy="20" r="8" />

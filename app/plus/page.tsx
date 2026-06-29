@@ -109,7 +109,7 @@ export default function Plus() {
           >
             <span>Annuel</span>
             <span className="ml-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent ring-1 ring-inset ring-accent/20">
-              ECO
+              Économise 100 €
             </span>
           </button>
         </div>

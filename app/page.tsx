@@ -24,7 +24,7 @@ interface HeroVariant {
 const HERO_VARIANTS: HeroVariant[] = [
   {
     key: "A",
-    headline: "Sache où en sont tes cheveux. Reprends le contrôle avant qu'il soit trop tard.",
+    headline: "Sache où en sont tes cheveux. Et reprends la main, sereinement.",
     sub: "Une photo, 30 secondes. Ton score de densité, tes zones, ton stade et l'aperçu de ton objectif. Gratuit, sans carte.",
     cta: "Faire mon scan gratuit",
   },
