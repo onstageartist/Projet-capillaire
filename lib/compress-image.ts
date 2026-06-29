@@ -9,7 +9,9 @@ export function compressImage(file: File): Promise<File> {
     }
 
     const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
+      URL.revokeObjectURL(objectUrl); // libère la mémoire (sinon fuite à chaque image)
       let { width, height } = img;
       if (width > MAX_DIM || height > MAX_DIM) {
         const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
@@ -20,7 +22,11 @@ export function compressImage(file: File): Promise<File> {
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(file); // pas de contexte canvas : on renvoie l'original tel quel
+        return;
+      }
       ctx.drawImage(img, 0, 0, width, height);
 
       canvas.toBlob(
@@ -35,7 +41,10 @@ export function compressImage(file: File): Promise<File> {
         QUALITY
       );
     };
-    img.onerror = () => resolve(file);
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file);
+    };
+    img.src = objectUrl;
   });
 }

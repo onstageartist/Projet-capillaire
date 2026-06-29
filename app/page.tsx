@@ -10,6 +10,7 @@ import { StatsBand } from "@/components/landing/stats-band";
 import { Reassurance } from "@/components/landing/reassurance";
 import { GradientBanner } from "@/components/landing/gradient-banner";
 import SiteFooter from "@/components/site-footer";
+import SocialProof from "@/components/social-proof";
 import { trackEvent } from "@/lib/track";
 import { useEffect, useState, useRef } from "react";
 
@@ -244,7 +245,9 @@ export default function Home() {
 
       {/* Preuve sociale (slot honnête) */}
       <section className="border-y border-border bg-surface/40 px-5 py-16">
-        <Reveal className="mx-auto max-w-xl text-center">
+        <Reveal className="mx-auto flex max-w-xl flex-col items-center gap-5 text-center">
+          {/* Compteur réel de scans (masqué tant qu'il n'y a pas de données). */}
+          <SocialProof />
           <p className="text-pretty text-sm text-text-muted">
             Scalpy est en lancement. Rejoins les premiers utilisateurs et
             découvre ton bilan.

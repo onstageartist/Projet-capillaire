@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trackEvent } from "@/lib/track";
+import { compressImage } from "@/lib/compress-image";
 import { Button, Card, Disclaimer, Checkbox } from "@/components/ui";
 import dynamic from "next/dynamic";
 
@@ -90,7 +91,9 @@ export default function Scan() {
         const photoToSend = photos[0];
         if (!photoToSend) return;
         const blob = await fetch(photoToSend).then(r => r.blob());
-        const file = new File([blob], "scan.jpg", { type: "image/jpeg" });
+        const raw = new File([blob], "scan.jpg", { type: "image/jpeg" });
+        // Compresse avant l'envoi : moins de data, upload plus rapide, coût IA réduit.
+        const file = await compressImage(raw);
 
         const supabase = createClient();
         await supabase.from("profiles").upsert(
@@ -101,6 +104,17 @@ export default function Scan() {
         const formData = new FormData();
         formData.append("photo", file);
         const res = await fetch("/api/scan", { method: "POST", body: formData });
+        if (!res.ok && res.status !== 200) {
+          clearInterval(stepInterval);
+          clearInterval(percentInterval);
+          // 429 = trop de scans ; sinon erreur générique, jamais d'écran figé.
+          setError(res.status === 429
+            ? "Trop de scans en peu de temps. Réessaie dans une minute."
+            : "Le serveur n'a pas pu analyser la photo. Réessaie.");
+          setStep("manque");
+          analysisDone.current = false;
+          return;
+        }
         const data = await res.json();
 
         if (data.error || data.usable === false) {
