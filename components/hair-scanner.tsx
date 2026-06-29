@@ -399,12 +399,17 @@ export default function HairScanner({ onAllCaptured }: Props) {
               }
             }
           } else if (ph?.auto) {
-            // Phase dessus : tete penchee, le visage n'est plus visible -> on guide au cuir chevelu.
-            if (ratio >= MIN_HAIR_RATIO) {
+            // Phase dessus : on veut le crane penche vers la camera. Signal fiable :
+            // le visage n'est PLUS detecte de face (tete inclinee) ET assez de
+            // cheveux dans le cadre. Sinon on guide vers le bon geste.
+            const faceVisible = !!landmarksRef.current;
+            if (ratio < MIN_HAIR_RATIO) {
+              msg = "Penche le dessus de ta tete vers la camera";
+            } else if (faceVisible) {
+              msg = "Penche un peu plus, montre le dessus du crane";
+            } else {
               msg = "Parfait, ne bouge plus";
               ready = true;
-            } else {
-              msg = "Penche la tete vers l'avant, montre le dessus du crane";
             }
           } else {
             // Phase portrait : manuelle, on cadre puis on appuie.
@@ -665,6 +670,18 @@ export default function HairScanner({ onAllCaptured }: Props) {
               strokeDasharray={status === "aligning" ? "none" : "3 2.5"}
               className="transition-colors duration-300"
             />
+          </svg>
+        )}
+
+        {/* Repere de cadrage phase 3 (portrait) : place ta tete entiere dans le
+            gabarit. Ce portrait nourrit l'avant/apres -> bon cadrage = bon rendu. */}
+        {phase === 2 && (
+          <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <ellipse
+              cx="50" cy="40" rx="22" ry="29"
+              fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="0.7" strokeDasharray="3 2.5"
+            />
+            <path d="M28 86 Q50 64 72 86" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="0.7" strokeDasharray="3 2.5" />
           </svg>
         )}
 
