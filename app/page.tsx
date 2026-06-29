@@ -103,10 +103,10 @@ export default function Home() {
           <ScoreMark size={16} value={0.72} />
           Analyse capillaire de bien-être, par IA
         </span>
-        <h1 className="max-w-2xl text-balance text-center font-display t-hero font-semibold text-text">
+        <h1 className="w-full max-w-2xl text-balance text-center font-display t-hero font-semibold text-text">
           {hero.headline}
         </h1>
-        <p className="mx-auto mt-6 max-w-lg text-pretty text-center text-base leading-relaxed text-text-muted">
+        <p className="mt-6 w-full max-w-lg text-pretty text-center text-base leading-relaxed text-text-muted">
           {hero.sub}
         </p>
         <div className="mt-10">
