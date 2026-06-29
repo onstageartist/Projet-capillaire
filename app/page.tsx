@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Gauge, Disclaimer, Reveal, ScoreMark } from "@/components/ui";
+import SmoothScroll from "@/components/smooth-scroll";
 import { trackEvent } from "@/lib/track";
 import { useEffect, useState, useRef } from "react";
 
@@ -43,7 +44,7 @@ function CtaButton({ className = "", variant }: { className?: string; variant?: 
     <Link
       href="/onboarding"
       onClick={() => trackEvent("cta_scan_click", variant ? { variant } : undefined)}
-      className={`inline-block rounded-[var(--radius-lg)] bg-accent px-8 py-4 text-lg font-semibold text-accent-foreground shadow-[var(--shadow-accent-glow)] transition-all duration-[var(--dur)] ease-[var(--ease-out)] hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-[0_0_0_1px_var(--accent-ring),0_12px_36px_oklch(0.724_0.142_168/0.24)] active:translate-y-0 ${className}`}
+      className={`inline-block rounded-[var(--radius-lg)] bg-accent px-8 py-4 text-lg font-semibold text-accent-foreground shadow-[var(--shadow-accent-glow)] transition-all duration-[var(--dur)] ease-[var(--ease-out)] hover:-translate-y-0.5 hover:bg-accent-hover active:translate-y-0 ${className}`}
     >
       {variant ? HERO_VARIANTS.find((v) => v.key === variant)?.cta ?? "Faire mon scan gratuit" : "Faire mon scan gratuit"}
     </Link>
@@ -67,7 +68,7 @@ function StickyCtaBar({ variant }: { variant?: string }) {
   if (!show) return null;
 
   return (
-    <div className="glass fixed bottom-0 left-0 right-0 z-50 border-t border-border p-3 sm:hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-bg/95 p-3 sm:hidden">
       <Link
         href="/onboarding"
         onClick={() => trackEvent("cta_scan_click", variant ? { variant } : undefined)}
@@ -93,15 +94,16 @@ export default function Home() {
   }, []);
 
   return (
+    <SmoothScroll>
     <main className="flex flex-col">
       {/* Hero */}
       <section id="hero" className="grain relative isolate flex flex-col items-center overflow-hidden px-5 pb-20 pt-20 sm:pb-24 sm:pt-28">
-        <div className="accent-halo" />
-        <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface/60 px-3.5 py-1.5 text-xs font-medium text-text-muted backdrop-blur-sm">
+        <div className="contour-bg" />
+        <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-xs font-medium text-text-muted">
           <ScoreMark size={16} value={0.72} />
           Analyse capillaire de bien-être, par IA
         </span>
-        <h1 className="max-w-2xl text-balance text-center font-display text-[34px] font-semibold leading-[1.08] tracking-[-0.02em] text-text sm:text-[44px]">
+        <h1 className="max-w-2xl text-balance text-center font-display t-hero font-semibold text-text">
           {hero.headline}
         </h1>
         <p className="mx-auto mt-6 max-w-lg text-pretty text-center text-base leading-relaxed text-text-muted">
@@ -136,7 +138,7 @@ export default function Home() {
       {/* Comment ça marche */}
       <section className="px-5 py-20 sm:py-24">
         <div className="mx-auto max-w-3xl">
-          <Reveal as="h2" className="text-center font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
+          <Reveal as="h2" className="text-center font-display t-h2 text-balance font-semibold text-text">
             Comment ça marche
           </Reveal>
           <div className="mt-12 grid gap-8 sm:grid-cols-3">
@@ -172,7 +174,7 @@ export default function Home() {
       {/* Demo du scan */}
       <section className="border-y border-border bg-surface/40 px-5 py-20 sm:py-24">
         <Reveal className="mx-auto max-w-xl text-center">
-          <h2 className="font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
+          <h2 className="font-display t-h2 text-balance font-semibold text-text">
             Le scan qui te dit tout
           </h2>
           <p className="mx-auto mt-3 max-w-md text-pretty text-sm text-text-muted">
@@ -188,7 +190,7 @@ export default function Home() {
       {/* Bénéfices */}
       <section className="px-5 py-20 sm:py-24">
         <div className="mx-auto max-w-3xl">
-          <Reveal as="h2" className="text-center font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
+          <Reveal as="h2" className="text-center font-display t-h2 text-balance font-semibold text-text">
             Ce que tu y gagnes
           </Reveal>
           <div className="mt-12 grid gap-6 sm:grid-cols-2">
@@ -232,7 +234,7 @@ export default function Home() {
       {/* FAQ */}
       <section className="px-5 py-20 sm:py-24">
         <div className="mx-auto max-w-2xl">
-          <Reveal as="h2" className="text-center font-display text-[20px] font-semibold tracking-[-0.01em] text-text sm:text-[26px]">
+          <Reveal as="h2" className="text-center font-display t-h2 text-balance font-semibold text-text">
             Les questions que tu te poses
           </Reveal>
           <div className="mt-10 space-y-3">
@@ -278,9 +280,9 @@ export default function Home() {
 
       {/* CTA final */}
       <section className="relative isolate overflow-hidden px-5 py-24 sm:py-28">
-        <div className="accent-halo" />
+        <div className="contour-bg" />
         <Reveal className="mx-auto max-w-lg text-center">
-          <h2 className="font-display text-[24px] font-semibold tracking-[-0.01em] text-text sm:text-[30px]">
+          <h2 className="font-display t-h1 text-balance font-semibold text-text">
             Prêt à savoir où tu en es ?
           </h2>
           <p className="mt-4 text-text-muted">
@@ -316,5 +318,6 @@ export default function Home() {
       <Disclaimer className="mx-auto mb-6 justify-center" />
       <StickyCtaBar variant={hero.key} />
     </main>
+    </SmoothScroll>
   );
 }

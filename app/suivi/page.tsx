@@ -115,7 +115,7 @@ export default function Suivi() {
                   <div key={scan.id} className="flex flex-1 flex-col items-center gap-1">
                     <span className="font-data text-xs text-text-faint">{scan.score}</span>
                     <div
-                      className="w-full rounded-t-[var(--radius-sm)] bg-gradient-to-t from-accent-pressed to-accent transition-all duration-[var(--dur-slow)] ease-[var(--ease-out)]"
+                      className="w-full rounded-t-[var(--radius-sm)] bg-accent transition-all duration-[var(--dur-slow)] ease-[var(--ease-out)]"
                       style={{ height: `${(scan.score / 100) * 100}%` }}
                     />
                     <span className="text-[10px] text-text-faint">

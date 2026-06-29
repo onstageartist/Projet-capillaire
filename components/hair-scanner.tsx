@@ -299,6 +299,16 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 h-full w-full" style={{ transform: "scaleX(-1)" }} />
         <canvas ref={captureRef} className="hidden" />
 
+        {/* Réticule de cadrage : coins de viseur (instrument de précision) */}
+        <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <g fill="none" stroke="var(--accent)" strokeWidth="0.6" strokeLinecap="round" opacity="0.7">
+            <path d="M6 14 V6 H14" />
+            <path d="M86 6 H94 V14" />
+            <path d="M94 86 V94 H86" />
+            <path d="M14 94 H6 V86" />
+          </g>
+        </svg>
+
         {flash && <div className="absolute inset-0 bg-white/30 transition-opacity duration-300" />}
 
         {status === "aligning" && (

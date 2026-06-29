@@ -2,6 +2,8 @@
   <rect width="56" height="56" rx="12" fill="#0E0F12"/>
   <circle cx="28" cy="28" r="22" stroke="#34D399" stroke-opacity=".25" fill="none"/>
   <circle cx="28" cy="28" r="14" stroke="#34D399" stroke-opacity=".45" fill="none"/>
-  <circle cx="28" cy="28" r="3.4" fill="#34D399"/>
-  <line x1="6" y1="28" x2="50" y2="28" stroke="#34D399" stroke-width="1.6"/>
+  <g stroke="#16B981" stroke-width="2.4" stroke-linecap="round">
+    <path d="M28 4 V10 M28 46 V52 M4 28 H10 M46 28 H52"/>
+  </g>
+  <circle cx="28" cy="28" r="3.6" fill="#16B981"/>
 </svg>

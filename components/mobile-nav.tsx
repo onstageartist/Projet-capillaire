@@ -14,7 +14,7 @@ export default function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface/90 backdrop-blur-md sm:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-surface sm:hidden">
       <div className="flex items-center justify-around py-2">
         {TABS.map((tab) => {
           const active = pathname === tab.href;

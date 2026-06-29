@@ -11,7 +11,7 @@ function ProgressBar({ value, className = "" }: ProgressBarProps) {
   return (
     <div className={`h-1.5 w-full overflow-hidden rounded-full bg-surface-2 ${className}`}>
       <div
-        className="h-full rounded-full bg-gradient-to-r from-accent-pressed to-accent transition-all duration-[var(--dur)]"
+        className="h-full rounded-full bg-accent transition-all duration-[var(--dur)]"
         style={{ width: `${clamped}%`, transitionTimingFunction: "var(--ease-out)" }}
       />
     </div>
