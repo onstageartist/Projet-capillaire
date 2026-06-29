@@ -92,7 +92,6 @@ export function TrendChart({ points }: TrendChartProps) {
             style={{
               strokeDasharray: dash,
               strokeDashoffset: dash * (1 - draw),
-              filter: "drop-shadow(0 0 3px var(--accent))",
             }}
           />
         </>

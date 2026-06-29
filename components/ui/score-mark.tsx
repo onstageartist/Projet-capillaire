@@ -65,7 +65,6 @@ export function ScoreMark({ size = 24, value = 0.66, spin = false, className = "
         strokeDasharray={`${arc} ${circ - arc}`}
         strokeDashoffset={offset}
         transform="rotate(135 20 20)"
-        style={{ filter: "drop-shadow(0 0 3px var(--accent))" }}
       />
       <circle cx="20" cy="20" r="2.4" fill="var(--accent)" />
     </svg>

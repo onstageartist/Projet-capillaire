@@ -90,7 +90,6 @@ function Gauge({ score, label = "Score de densité" }: GaugeProps) {
           className="transition-all duration-[1.2s]"
           style={{
             transitionTimingFunction: "var(--ease-out)",
-            filter: `drop-shadow(0 0 5px ${color})`,
           }}
         />
       </svg>

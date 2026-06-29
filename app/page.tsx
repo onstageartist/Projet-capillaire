@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Gauge, Disclaimer, Reveal, ScoreMark } from "@/components/ui";
+import { Gauge, Reveal, ScoreMark } from "@/components/ui";
 import SmoothScroll from "@/components/smooth-scroll";
+import { HeroPreview } from "@/components/landing/hero-preview";
+import SiteFooter from "@/components/site-footer";
 import { trackEvent } from "@/lib/track";
 import { useEffect, useState, useRef } from "react";
 
@@ -115,6 +117,10 @@ export default function Home() {
         <p className="mt-4 text-center text-xs text-text-faint">
           Gratuit · 30 secondes · Tes photos restent privées
         </p>
+
+        <div className="mt-16 w-full px-1 pb-6">
+          <HeroPreview />
+        </div>
       </section>
 
       {/* Bandeau de confiance */}
@@ -136,7 +142,7 @@ export default function Home() {
       </section>
 
       {/* Comment ça marche */}
-      <section className="px-5 py-20 sm:py-24">
+      <section id="comment" className="scroll-mt-20 px-5 py-20 sm:py-24">
         <div className="mx-auto max-w-3xl">
           <Reveal as="h2" className="text-center font-display t-h2 text-balance font-semibold text-text">
             Comment ça marche
@@ -232,7 +238,7 @@ export default function Home() {
       </section>
 
       {/* FAQ */}
-      <section className="px-5 py-20 sm:py-24">
+      <section id="faq" className="scroll-mt-20 px-5 py-20 sm:py-24">
         <div className="mx-auto max-w-2xl">
           <Reveal as="h2" className="text-center font-display t-h2 text-balance font-semibold text-text">
             Les questions que tu te poses
@@ -294,28 +300,8 @@ export default function Home() {
         </Reveal>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border px-5 py-8">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="font-display text-sm font-semibold tracking-[-0.02em] text-text-faint">Scalpy</p>
-          <div className="flex flex-wrap justify-center gap-6 text-xs text-text-faint">
-            <Link href="/mentions-legales" className="transition-colors hover:text-text-muted">
-              Mentions légales
-            </Link>
-            <Link href="/confidentialite" className="transition-colors hover:text-text-muted">
-              Confidentialité
-            </Link>
-            <Link href="/cgu" className="transition-colors hover:text-text-muted">
-              CGU
-            </Link>
-            <a href="mailto:mathias.stephant@gmail.com" className="transition-colors hover:text-text-muted">
-              Contact
-            </a>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
 
-      <Disclaimer className="mx-auto mb-6 justify-center" />
       <StickyCtaBar variant={hero.key} />
     </main>
     </SmoothScroll>

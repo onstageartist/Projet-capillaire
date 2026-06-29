@@ -9,37 +9,37 @@
    ============================================================ */
 
 :root {
-  /* ---- Encre + surfaces superposées (jamais de noir pur) ---- */
-  --bg: #0E0F12;
-  --surface: #16181D;
-  --surface-2: #1E2128;
-  --surface-elevated: #24272F;
-  --ink: #090A0C; /* fond profond pour overlays sur image */
+  /* ---- Clinique CLAIR : near-white froid, surfaces blanches superposées ---- */
+  --bg: #F7F9FB;            /* fond near-white froid (jamais blanc pur) */
+  --surface: #FFFFFF;       /* cartes */
+  --surface-2: #EEF2F6;     /* pistes, hover, surfaces secondaires */
+  --surface-elevated: #FFFFFF;
+  --ink: #0B1220;           /* encre profonde pour overlays sur image */
 
-  /* ---- Bordures filaires ---- */
-  --border: #262A32;
-  --border-strong: #333947;
+  /* ---- Bordures filaires claires ---- */
+  --border: #E3E9EF;
+  --border-strong: #CBD5E1;
   --line: var(--border);
 
-  /* ---- Texte ---- */
-  --text: #F2F3F5;
-  --text-muted: #9AA0A8;
-  --text-faint: #6B7178;
+  /* ---- Texte encre ---- */
+  --text: #0F1B2D;          /* encre profonde, légèrement froide */
+  --text-muted: #51607A;    /* secondaire (AA sur fond clair) */
+  --text-faint: #7C8AA0;    /* tertiaire */
 
-  /* ---- Émeraude (signal de marque, exact 16B981) ---- */
-  --accent: #16B981;
-  --accent-hover: #13A574;
-  --accent-pressed: #0E9268;
-  --accent-light: #34D399;
-  --accent-foreground: #06231A; /* texte/icône sur fond émeraude */
-  --accent-soft: rgba(22, 185, 129, 0.12);
-  --accent-ring: rgba(22, 185, 129, 0.40);
+  /* ---- Émeraude (accent unique de marque, lisible sur clair) ---- */
+  --accent: #0C8F61;        /* émeraude profond, AA en texte sur blanc */
+  --accent-hover: #0A7C54;
+  --accent-pressed: #086A48;
+  --accent-light: #16B981;  /* émeraude vif de marque, pour petits accents */
+  --accent-foreground: #FFFFFF; /* texte/icône sur fond émeraude */
+  --accent-soft: rgba(16, 185, 129, 0.10);
+  --accent-ring: rgba(12, 143, 97, 0.35);
 
-  /* ---- Sémantique ---- */
+  /* ---- Sémantique (désaturée pour le clair) ---- */
   --success: var(--accent);
-  --signal: #F5A524;
+  --signal: #B45309;
   --warning: var(--signal);
-  --danger: #E5484D;
+  --danger: #DC2626;
 
   /* ---- Rayons (échelle cohérente) ---- */
   --radius-sm: 8px;
@@ -49,22 +49,21 @@
   --radius-2xl: 24px;
   --radius-full: 999px;
 
-  /* ---- Ombres basses et douces ---- */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+  /* ---- Ombres basses et douces (theme clair, opacite 0.04 a 0.08) ---- */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
   --shadow-card:
-    0 1px 1px rgba(0, 0, 0, 0.24),
-    0 4px 12px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    0 1px 3px rgba(15, 23, 42, 0.06),
+    0 1px 2px rgba(15, 23, 42, 0.04);
   --shadow-md:
-    0 2px 4px rgba(0, 0, 0, 0.26),
-    0 12px 28px rgba(0, 0, 0, 0.34);
+    0 4px 12px rgba(15, 23, 42, 0.07),
+    0 2px 4px rgba(15, 23, 42, 0.04);
   --shadow-pop:
-    0 4px 10px rgba(0, 0, 0, 0.30),
-    0 24px 56px rgba(0, 0, 0, 0.46);
+    0 12px 32px rgba(15, 23, 42, 0.10),
+    0 4px 8px rgba(15, 23, 42, 0.05);
   /* anneau émeraude discret pour le SEUL accent par écran (paywall, plan recommandé) */
   --shadow-accent-glow:
-    0 0 0 1px rgba(22, 185, 129, 0.45),
-    0 10px 30px rgba(22, 185, 129, 0.12);
+    0 0 0 1px rgba(12, 143, 97, 0.30),
+    0 10px 28px rgba(12, 143, 97, 0.12);
 
   /* ---- Mouvement : courbes sur mesure, jamais linéaire ---- */
   --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
