@@ -59,20 +59,27 @@ export default function AuthForm({
     const supabase = createClient();
 
     if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: `${location.origin}/auth/confirm` },
+      // Compte créé sans confirmation d'email (zéro friction), puis connexion directe.
+      const res = await fetch("/api/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
-      if (error) {
-        setMessage(humanError(error.message));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(humanError(data.error || "Inscription impossible."));
       } else {
-        trackEvent("inscription");
-        setIsSuccess(true);
-        if (onSuccess) {
-          onSuccess();
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) {
+          setMessage(humanError(signInError.message));
         } else {
-          setMessage("Vérifie ta boîte mail pour confirmer ton inscription.");
+          trackEvent("inscription");
+          setIsSuccess(true);
+          if (onSuccess) {
+            onSuccess();
+          } else {
+            router.push(redirectTo);
+          }
         }
       }
     } else {
