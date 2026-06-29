@@ -50,6 +50,17 @@ export async function POST(req: Request) {
 
     await trackEventServer("projection_started", {}, { userId: user.id });
 
+    // Stocke l'avant (prise portrait) cote serveur, pour que la page resultat ET
+    // l'espace abonne montrent le MEME avant, aligne au pixel avec l'apres.
+    if (beforeImage && typeof beforeImage === "string" && beforeImage.startsWith("data:")) {
+      try {
+        const b = Buffer.from(beforeImage.split(",")[1] || "", "base64");
+        if (b.length > 0) {
+          await admin.storage.from("projections").upload(`${user.id}/${scanId}/before.jpg`, b, { contentType: "image/jpeg", upsert: true });
+        }
+      } catch { /* non bloquant */ }
+    }
+
     const falKey = process.env.FAL_KEY;
     let success = false;
 
@@ -66,7 +77,9 @@ export async function POST(req: Request) {
             mask_url: maskImage,
             prompt: AFTER_PROMPT,
             num_images: 1,
-            output_format: "jpeg",
+            num_inference_steps: 35,
+            guidance_scale: 3.5,
+            output_format: "png", // evite les artefacts JPEG sur la zone recollee
             safety_tolerance: "2",
           }),
         });

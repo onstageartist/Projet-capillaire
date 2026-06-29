@@ -171,18 +171,25 @@ export default function AppPage() {
             .from("projections")
             .createSignedUrl(proj.full_path, 3600);
 
-          const { data: scanRow } = await supabase
-            .from("scans")
-            .select("photo_path")
-            .eq("id", latestScan.id)
-            .single();
-
-          let origUrl = null;
-          if (scanRow?.photo_path) {
-            const { data: oUrl } = await supabase.storage
-              .from("scalp-photos")
-              .createSignedUrl(scanRow.photo_path, 3600);
-            origUrl = oUrl?.signedUrl ?? null;
+          // L'avant = la prise portrait stockee (before.jpg), alignee au pixel
+          // avec l'apres inpainte. Repli sur la photo de scan si absente.
+          let origUrl: string | null = null;
+          const { data: bUrl } = await supabase.storage
+            .from("projections")
+            .createSignedUrl(`${user.id}/${latestScan.id}/before.jpg`, 3600);
+          origUrl = bUrl?.signedUrl ?? null;
+          if (!origUrl) {
+            const { data: scanRow } = await supabase
+              .from("scans")
+              .select("photo_path")
+              .eq("id", latestScan.id)
+              .single();
+            if (scanRow?.photo_path) {
+              const { data: oUrl } = await supabase.storage
+                .from("scalp-photos")
+                .createSignedUrl(scanRow.photo_path, 3600);
+              origUrl = oUrl?.signedUrl ?? null;
+            }
           }
 
           setProjection({

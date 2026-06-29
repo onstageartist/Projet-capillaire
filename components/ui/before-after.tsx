@@ -81,7 +81,7 @@ export function BeforeAfter({ beforeUrl, afterUrl, locked = false, start = 55, o
           alt="Objectif visuel simulé"
           draggable={false}
           className="absolute inset-0 h-full w-full object-cover"
-          style={locked ? { filter: "blur(18px)", transform: "scale(1.06)" } : undefined}
+          style={locked ? { filter: "blur(9px)", transform: "scale(1.04)" } : undefined}
         />
         {/* aujourd'hui (dessus), coupe selon la poignee */}
         <img
