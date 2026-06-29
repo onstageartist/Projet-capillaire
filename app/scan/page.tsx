@@ -13,15 +13,15 @@ const HairScanner = dynamic(() => import("@/components/hair-scanner"), { ssr: fa
 type ScanStep = "manque" | "choix" | "capture" | "processing" | "bilan";
 
 const ANALYSIS_STEPS = [
-  "Détection de la zone capillaire",
-  "Stabilisation pose et lumière",
-  "Segmentation des zones, front, milieu, couronne",
-  "Estimation de la densité par zone",
-  "Repérage de la ligne frontale",
-  "Analyse de la couronne",
-  "Estimation du stade, échelle Norwood",
-  "Calcul de l'indice de couverture",
-  "Génération de ton bilan",
+  "Repérage de tes cheveux",
+  "Vérification de la lumière et du cadrage",
+  "Découpage en zones (front, milieu, sommet)",
+  "Mesure de ta densité, zone par zone",
+  "Analyse de ta ligne frontale",
+  "Analyse du sommet du crâne",
+  "Estimation de ton stade",
+  "Calcul de ta couverture globale",
+  "Préparation de ton bilan",
 ];
 
 interface ScanResult {
