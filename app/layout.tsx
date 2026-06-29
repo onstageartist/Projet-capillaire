@@ -82,6 +82,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" className={`${bodyFont.variable} ${displayFont.variable} ${dataFont.variable} h-full antialiased`}>
+      <head>
+        {/* Connexions pre-chauffees : Supabase (auth/db/storage), CDN MediaPipe
+            (WASM + modeles du scanner) -> demarrage plus rapide. */}
+        {process.env.NEXT_PUBLIC_SUPABASE_URL && (
+          <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} crossOrigin="anonymous" />
+        )}
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://storage.googleapis.com" crossOrigin="anonymous" />
+      </head>
       <body className="flex min-h-full flex-col font-sans pb-16 sm:pb-0">
         <script
           type="application/ld+json"

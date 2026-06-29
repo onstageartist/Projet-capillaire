@@ -96,57 +96,34 @@ export default function AppPage() {
 
       setSubscribed(true);
 
-      // Load marketing consent
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("marketing_consent")
-        .eq("id", user.id)
-        .single();
-      if (profile) setMarketingConsent(profile.marketing_consent ?? true);
-
       // Calculate current day
       const start = new Date(sub.created_at);
       const now = new Date();
       const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
       setCurrentDay(Math.min(diff + 1, 30));
 
-      // Load scan history
-      const { data: scanData } = await supabase
-        .from("scans")
-        .select("id, score, norwood, created_at")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true });
+      // Tout le reste ne depend que de user.id -> en PARALLELE (au lieu de 5
+      // requetes en cascade). Les recommandations sont recuperees DANS scans
+      // (plus de requete dediee). Gros gain au chargement de l'espace.
+      const [profileRes, scanRes, onbRes, progressRes] = await Promise.all([
+        supabase.from("profiles").select("marketing_consent").eq("id", user.id).single(),
+        supabase.from("scans").select("id, score, norwood, created_at, recommendations").eq("user_id", user.id).order("created_at", { ascending: true }),
+        supabase.from("onboarding_responses").select("answers").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).single(),
+        supabase.from("program_progress").select("task_id, created_at").eq("user_id", user.id).eq("done", true),
+      ]);
 
+      if (profileRes.data) setMarketingConsent(profileRes.data.marketing_consent ?? true);
+
+      const scanData = scanRes.data;
       if (scanData) setScans(scanData);
 
-      // Load quiz answers for personalization
-      const { data: onb } = await supabase
-        .from("onboarding_responses")
-        .select("answers")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      const quizAnswers: QuizAnswers = onb?.answers ?? {};
+      const quizAnswers: QuizAnswers = onbRes.data?.answers ?? {};
       const latestRecs: string[] = scanData?.length
-        ? (await supabase
-            .from("scans")
-            .select("recommendations")
-            .eq("id", scanData[scanData.length - 1].id)
-            .single()
-          ).data?.recommendations ?? []
+        ? (scanData[scanData.length - 1].recommendations ?? [])
         : [];
-
       setProgramWeeks(buildPersonalizedProgram(quizAnswers, latestRecs));
 
-      // Load progress
-      const { data: progress } = await supabase
-        .from("program_progress")
-        .select("task_id, created_at")
-        .eq("user_id", user.id)
-        .eq("done", true);
-
+      const progress = progressRes.data;
       if (progress) {
         setCompletedTasks(new Set(progress.map((p: { task_id: string }) => p.task_id)));
         const dates = new Map<string, string>();

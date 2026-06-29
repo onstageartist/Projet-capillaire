@@ -215,6 +215,8 @@ export default function HairScanner({ onAllCaptured }: Props) {
   // fluide a l'oeil mais on divise le cout CPU (cle quand la camera est en haute
   // resolution : sinon on boucle sur 1,5M de pixels 30x/s).
   const lastSegRef = useRef(0);
+  // ImageData reutilisee entre les frames (au lieu d'en allouer une par frame).
+  const overlayImgRef = useRef<ImageData | null>(null);
 
   const [status, setStatus] = useState<"loading" | "ready" | "aligning" | "captured" | "error">("loading");
   const [loadingMsg, setLoadingMsg] = useState("Préparation de la caméra...");
@@ -375,7 +377,12 @@ export default function HairScanner({ onAllCaptured }: Props) {
           const data = mask.getAsUint8Array();
           const totalPixels = data.length;
           let hairPixels = 0;
-          const img = ctx.createImageData(overlay.width, overlay.height);
+          // Reutilise l'ImageData (chaque pixel est reecrit a chaque frame) au
+          // lieu d'en allouer une neuve a chaque passe -> moins de GC.
+          if (!overlayImgRef.current || overlayImgRef.current.width !== overlay.width || overlayImgRef.current.height !== overlay.height) {
+            overlayImgRef.current = ctx.createImageData(overlay.width, overlay.height);
+          }
+          const img = overlayImgRef.current;
 
           // buffer du masque cheveux (1 = cheveux), reutilise entre les frames
           if (!maskBufRef.current || maskBufRef.current.length !== totalPixels) {
