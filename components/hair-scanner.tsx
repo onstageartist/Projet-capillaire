@@ -28,7 +28,6 @@ const STRUGGLE_MS = 9000;
 
 type Props = {
   onAllCaptured: (photos: string[], masks: string[]) => void;
-  onError?: (err: Error) => void;
 };
 
 // Construit le masque d'inpainting depuis le masque cheveux MediaPipe.
@@ -137,7 +136,36 @@ function assessQuality(src: HTMLCanvasElement): { ok: boolean; reason: string } 
   return { ok: true, reason: "" };
 }
 
-export default function HairScanner({ onAllCaptured, onError }: Props) {
+// Message clair selon la vraie cause de l'echec camera (err.name, jamais le message).
+// Chaque cause appelle une action differente : on ne laisse jamais un ecran muet.
+function cameraErrorMessage(err: unknown): { title: string; hint: string } {
+  const name = (err as { name?: string })?.name || "";
+  switch (name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return {
+        title: "Accès à la caméra refusé",
+        hint: "Autorise la caméra dans le cadenas du navigateur (ou dans Réglages sur iPhone), puis réessaie. Tu peux aussi importer une photo.",
+      };
+    case "NotFoundError":
+      return {
+        title: "Aucune caméra détectée",
+        hint: "On ne trouve pas de caméra sur cet appareil. Importe une photo pour continuer.",
+      };
+    case "NotReadableError":
+      return {
+        title: "Caméra déjà utilisée",
+        hint: "Une autre application utilise la caméra. Ferme-la puis réessaie, ou importe une photo.",
+      };
+    default:
+      return {
+        title: "Caméra indisponible",
+        hint: "Impossible d'ouvrir la caméra. Réessaie, ou importe une photo depuis ta galerie.",
+      };
+  }
+}
+
+export default function HairScanner({ onAllCaptured }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const captureRef = useRef<HTMLCanvasElement>(null);
@@ -167,6 +195,28 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
   const [alignProgress, setAlignProgress] = useState(0);
   const [coachMsg, setCoachMsg] = useState("");
   const [struggling, setStruggling] = useState(false);
+  const [camError, setCamError] = useState<{ title: string; hint: string } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  // Repli universel : une photo importee de la galerie alimente le MEME pipeline.
+  // Elle sert d'avant et de base d'analyse ; pas de masque (l'apres bascule alors
+  // sur l'edition pleine cote serveur). Personne ne reste bloque.
+  const handleImport = useCallback(
+    (file: File) => {
+      const fr = new FileReader();
+      fr.onload = () => {
+        const url = String(fr.result || "");
+        if (!url.startsWith("data:image")) return;
+        haptics.confirm();
+        const stream = videoRef.current?.srcObject as MediaStream | null;
+        stream?.getTracks().forEach((t) => t.stop());
+        onAllCaptured([url, url, url], ["", "", ""]);
+      };
+      fr.readAsDataURL(file);
+    },
+    [onAllCaptured]
+  );
 
   // Affiche une consigne, debouncee : on ne re-rend que si le message change.
   const setCoach = useCallback((m: string) => {
@@ -393,18 +443,34 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
 
     const timeout = setTimeout(() => {
       if (mounted && status === "loading") {
+        setCamError({
+          title: "Chargement trop long",
+          hint: "Le scanner met du temps à démarrer (connexion lente). Réessaie, ou importe une photo.",
+        });
         setStatus("error");
-        onError?.(new Error("Chargement trop long. Vérifie ta connexion."));
       }
     }, 45000);
 
     (async () => {
       try {
+        setStatus("loading");
+        setCamError(null);
         setLoadingMsg("Accès à la caméra...");
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        });
+        // Contraintes en "ideal" (jamais "exact" qui rejette sur beaucoup d'appareils),
+        // avec repli total si la combinaison demandee n'est pas supportee.
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "user" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false,
+          });
+        } catch (e) {
+          if ((e as { name?: string })?.name === "OverconstrainedError") {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          } else {
+            throw e;
+          }
+        }
         const video = videoRef.current!;
         video.srcObject = stream;
         video.setAttribute("playsinline", "true");
@@ -463,8 +529,9 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
         console.error("HairScanner error:", e);
         if (!mounted) return;
         clearTimeout(timeout);
+        // On reste monte et on propose retry + import : l'utilisateur n'est jamais bloque.
+        setCamError(cameraErrorMessage(e));
         setStatus("error");
-        onError?.(e instanceof Error ? e : new Error("Impossible d'initialiser le scanner."));
       }
     })();
 
@@ -479,9 +546,49 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
       try { faceRef.current?.close(); } catch { /* ignore */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
   const currentPhase = PHASES[phase];
+
+  // Ecran d'erreur : on explique la cause et on propose toujours une issue.
+  if (status === "error" && camError) {
+    return (
+      <div className="w-full space-y-4">
+        <div className="rounded-[16px] border border-border bg-surface p-6 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-surface-2">
+            <svg className="h-6 w-6 text-text-muted" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v15.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+          </div>
+          <h2 className="font-display text-lg font-semibold text-text">{camError.title}</h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-muted">{camError.hint}</p>
+
+          <div className="mt-5 flex flex-col gap-2.5">
+            <button
+              onClick={() => setAttempt((a) => a + 1)}
+              className="w-full rounded-[var(--radius-md)] bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover"
+            >
+              Réessayer la caméra
+            </button>
+            <button
+              onClick={() => importRef.current?.click()}
+              className="w-full rounded-[var(--radius-md)] border border-border px-5 py-3 text-sm font-medium text-text transition-colors hover:bg-surface-2"
+            >
+              Importer une photo
+            </button>
+          </div>
+        </div>
+
+        <input
+          ref={importRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-4">
@@ -493,7 +600,7 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
       </div>
 
       <div className="relative w-full overflow-hidden rounded-[16px] bg-surface-2">
-        <video ref={videoRef} className="w-full" style={{ transform: "scaleX(-1)" }} />
+        <video ref={videoRef} autoPlay muted playsInline className="w-full" style={{ transform: "scaleX(-1)" }} />
         <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 h-full w-full" style={{ transform: "scaleX(-1)" }} />
         <canvas ref={captureRef} className="hidden" />
 
@@ -594,6 +701,23 @@ export default function HairScanner({ onAllCaptured, onError }: Props) {
           </div>
         )}
       </div>
+
+      {/* Repli toujours accessible : la camera coince ? on importe une photo. */}
+      <div className="text-center">
+        <button
+          onClick={() => importRef.current?.click()}
+          className="text-xs text-text-muted underline-offset-2 transition-colors hover:text-text hover:underline"
+        >
+          La caméra coince ? Importer une photo
+        </button>
+      </div>
+      <input
+        ref={importRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); }}
+      />
     </div>
   );
 }

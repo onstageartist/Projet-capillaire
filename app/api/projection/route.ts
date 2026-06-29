@@ -95,8 +95,8 @@ export async function POST(req: Request) {
             mask_url: maskImage,
             prompt: AFTER_PROMPT,
             num_images: 1,
-            num_inference_steps: 35,
-            guidance_scale: 3.5,
+            num_inference_steps: 30, // le detail capillaire plafonne au-dela, inutile de payer plus
+            guidance_scale: 3.5, // 3 a 4 : au-dela les meches deviennent plastiques
             output_format: "png", // evite les artefacts JPEG sur la zone recollee
             safety_tolerance: "2",
           }),

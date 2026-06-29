@@ -289,13 +289,7 @@ export default function Scan() {
     return (
       <main className="flex flex-1 flex-col items-center px-5 py-6">
         <div className="w-full max-w-lg space-y-4 animate-fade-in">
-          <HairScanner
-            onAllCaptured={handleAllCaptured}
-            onError={() => {
-              setError("Impossible d'accéder à la caméra. Vérifie les permissions de ton navigateur.");
-              setStep("manque");
-            }}
-          />
+          <HairScanner onAllCaptured={handleAllCaptured} />
 
           <button
             onClick={() => setStep("choix")}
