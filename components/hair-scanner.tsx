@@ -210,6 +210,10 @@ export default function HairScanner({ onAllCaptured }: Props) {
   const lightCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const lightTimeRef = useRef(0);
   const lightMsgRef = useRef("");
+  // Throttle de la segmentation : on plafonne a ~25 traitements/s. Le rendu reste
+  // fluide a l'oeil mais on divise le cout CPU (cle quand la camera est en haute
+  // resolution : sinon on boucle sur 1,5M de pixels 30x/s).
+  const lastSegRef = useRef(0);
 
   const [status, setStatus] = useState<"loading" | "ready" | "aligning" | "captured" | "error">("loading");
   const [loadingMsg, setLoadingMsg] = useState("Préparation de la caméra...");
@@ -349,6 +353,11 @@ export default function HairScanner({ onAllCaptured }: Props) {
       lastTimeRef.current = video.currentTime;
       const now = performance.now();
 
+      // Segmentation throttlee a ~25/s : on ne re-traite (et on ne reinitialise
+      // le canvas) que toutes les ~40ms. Entre deux, l'overlay precedent persiste
+      // -> aucun clignotement, CPU divise (decisif en haute resolution).
+      if (now - lastSegRef.current >= 40) {
+      lastSegRef.current = now;
       overlay.width = video.videoWidth;
       overlay.height = video.videoHeight;
       const ctx = overlay.getContext("2d")!;
@@ -470,6 +479,7 @@ export default function HairScanner({ onAllCaptured }: Props) {
       } catch {
         // frame skip
       }
+      } // fin throttle segmentation
 
       // Echantillon lumiere en direct (throttle ~600ms, cout negligeable)
       if (now - lightTimeRef.current > 600) {

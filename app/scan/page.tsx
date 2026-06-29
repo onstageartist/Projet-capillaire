@@ -207,6 +207,17 @@ export default function Scan() {
     return () => { clearInterval(stepInterval); clearInterval(percentInterval); };
   }, [step, photos]);
 
+  // Prefetch des modeles MediaPipe des l'ecran "choix" (l'utilisateur est sur le
+  // point de scanner) -> camera quasi instantanee ensuite, modeles deja en cache.
+  // URLs alignees sur components/hair-scanner.tsx (stables).
+  useEffect(() => {
+    if (step !== "choix") return;
+    [
+      "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite",
+      "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+    ].forEach((u) => { fetch(u, { cache: "force-cache" }).catch(() => {}); });
+  }, [step]);
+
   // ─── ÉCRAN 1 : Le manque ───
   if (step === "manque") {
     return (
