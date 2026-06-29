@@ -56,48 +56,53 @@ export default function AuthForm({
 
     const supabase = createClient();
 
-    if (mode === "signup") {
-      // Compte créé sans confirmation d'email (zéro friction), puis connexion directe.
-      const res = await fetch("/api/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setMessage(humanError(data.error || "Inscription impossible."));
-      } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) {
-          setMessage(humanError(signInError.message));
+    try {
+      if (mode === "signup") {
+        // Compte créé sans confirmation d'email (zéro friction), puis connexion directe.
+        const res = await fetch("/api/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setMessage(humanError(data.error || "Inscription impossible."));
         } else {
-          trackEvent("inscription");
-          setIsSuccess(true);
+          const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+          if (signInError) {
+            setMessage(humanError(signInError.message));
+          } else {
+            trackEvent("inscription");
+            setIsSuccess(true);
+            if (onSuccess) {
+              onSuccess();
+            } else {
+              // Navigation dure : garantit que la page lit la session fraiche.
+              window.location.assign(redirectTo);
+            }
+          }
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) {
+          setMessage(humanError(error.message));
+        } else {
           if (onSuccess) {
             onSuccess();
           } else {
-            // Navigation dure : garantit que la page lit la session fraiche.
             window.location.assign(redirectTo);
           }
         }
       }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) {
-        setMessage(humanError(error.message));
-      } else {
-        if (onSuccess) {
-          onSuccess();
-        } else {
-          window.location.assign(redirectTo);
-        }
-      }
+    } catch {
+      // Reseau coupe : on le DIT, et le bouton ne reste jamais bloque.
+      setMessage("Connexion interrompue. Vérifie ta connexion et réessaie.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   return (
