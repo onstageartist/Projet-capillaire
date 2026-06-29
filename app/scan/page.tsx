@@ -79,12 +79,22 @@ export default function Scan() {
       });
     }, 1800);
 
+    // Progression FLUIDE pilotee par l'avancement reel : on s'approche de 90% en
+    // ralentissant (jamais de blocage net), puis des que l'analyse est prete on
+    // remplit jusqu'a 100% pile -> deblocage. progressTarget passe a 100 quand
+    // le resultat arrive (ou la barre reste en approche douce, jamais figee a 95).
+    let progressTarget = 90;
     const percentInterval = setInterval(() => {
       setAnalysisPercent((p) => {
-        if (p >= 95) { clearInterval(percentInterval); return p; }
-        return p + 1;
+        const k = progressTarget >= 100 ? 0.2 : 0.06; // remplissage final plus vif
+        const next = p + (progressTarget - p) * k;
+        if (progressTarget >= 100 && next >= 99.4) {
+          clearInterval(percentInterval);
+          return 100; // pile 100%
+        }
+        return Math.min(next, progressTarget);
       });
-    }, 150);
+    }, 55);
 
     async function runAnalysis() {
       try {
@@ -114,7 +124,24 @@ export default function Scan() {
         const formData = new FormData();
         formData.append("photo", file);
         if (topFile) formData.append("photo_top", topFile);
-        const res = await fetch("/api/scan", { method: "POST", body: formData });
+
+        // Timeout dur : l'analyse ne reste JAMAIS coincee. Au-dela de 45s on
+        // affiche une erreur claire au lieu de figer la barre.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45_000);
+        let res: Response;
+        try {
+          res = await fetch("/api/scan", { method: "POST", body: formData, signal: controller.signal });
+        } catch {
+          clearTimeout(timeoutId);
+          clearInterval(stepInterval);
+          clearInterval(percentInterval);
+          setError("L'analyse a mis trop de temps. Vérifie ta connexion et réessaie.");
+          setStep("manque");
+          analysisDone.current = false;
+          return;
+        }
+        clearTimeout(timeoutId);
         if (!res.ok && res.status !== 200) {
           clearInterval(stepInterval);
           clearInterval(percentInterval);
@@ -138,10 +165,11 @@ export default function Scan() {
         }
 
         setResult(data);
-        setAnalysisPercent(100);
         setAnalysisStep(ANALYSIS_STEPS.length - 1);
+        progressTarget = 100; // declenche le remplissage fluide jusqu'a 100% pile
 
-        await new Promise(r => setTimeout(r, 1500));
+        // Laisse la barre finir son remplissage avant de devoiler le bilan.
+        await new Promise(r => setTimeout(r, 1200));
 
         trackEvent("scan_completed", { score: data.score });
         sessionStorage.setItem("scanResult", JSON.stringify(data));
@@ -231,38 +259,14 @@ export default function Scan() {
   // ─── ÉCRAN 2 : Le choix cadré ───
   if (step === "choix") {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center px-5 py-12">
-        <div className="w-full max-w-lg space-y-6 animate-fade-in">
-          <h1 className="font-display text-[26px] font-semibold leading-[1.08] tracking-[-0.01em] text-text">
+      <main className="flex flex-1 flex-col items-center justify-center px-5 py-5">
+        <div className="w-full max-w-lg space-y-4 animate-fade-in">
+          <h1 className="font-display text-[24px] font-semibold leading-[1.1] tracking-[-0.01em] text-text">
             On passe à ton scan
           </h1>
-          <p className="text-base text-text-muted">
-            Ça prend une dizaine de secondes. Tes photos restent privées, et tu peux les supprimer quand tu veux.
+          <p className="text-sm text-text-muted">
+            Une dizaine de secondes. Tes photos restent privées, supprimables quand tu veux.
           </p>
-
-          <div className="grid grid-cols-2 gap-3">
-            {/* Carte rouge : photo simple */}
-            <Card className="border-danger/30 opacity-60">
-              <div className="flex items-center gap-2 mb-2">
-                <svg className="h-5 w-5 text-danger" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-                <span className="text-sm font-semibold text-text">Photo simple</span>
-              </div>
-              <p className="text-xs text-text-faint">Approximatif, dépend de la lumière.</p>
-            </Card>
-
-            {/* Carte verte : scan IA */}
-            <Card className="border-accent/40">
-              <div className="flex items-center gap-2 mb-2">
-                <svg className="h-5 w-5 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-                <span className="text-sm font-semibold text-text">Scan IA</span>
-              </div>
-              <p className="text-xs text-text-faint">Mesure tes zones et estime ta densité.</p>
-            </Card>
-          </div>
 
           {/* Mode d'emploi visuel : on montre les 3 prises AVANT d'ouvrir la
               camera, pour que personne ne soit perdu (moins de bugs, plus rapide). */}
@@ -347,8 +351,8 @@ export default function Scan() {
   // ─── ÉCRAN 5 : Capture (face + sommet dans un seul composant) ───
   if (step === "capture") {
     return (
-      <main className="flex flex-1 flex-col items-center px-5 py-6">
-        <div className="w-full max-w-lg space-y-4 animate-fade-in">
+      <main className="flex flex-1 flex-col items-center justify-center px-5 py-3">
+        <div className="w-full max-w-lg space-y-3 animate-fade-in">
           <HairScanner onAllCaptured={handleAllCaptured} />
 
           <button
@@ -380,11 +384,11 @@ export default function Scan() {
                 fill="none" stroke="var(--accent)" strokeWidth="4"
                 strokeDasharray={`${analysisPercent * 2.76} 276`}
                 strokeLinecap="round"
-                className="transition-all duration-500"
+                className="transition-all duration-150 ease-linear"
               />
             </svg>
             <span className="absolute inset-0 flex items-center justify-center font-data text-[28px] font-medium text-text">
-              {analysisPercent}%
+              {Math.round(analysisPercent)}%
             </span>
           </div>
 

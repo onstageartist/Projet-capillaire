@@ -257,16 +257,36 @@ export default function HairScanner({ onAllCaptured }: Props) {
     const cCtx = c.getContext("2d")!;
     cCtx.drawImage(video, 0, 0, c.width, c.height);
 
-    // Controle qualite avant d'accepter la prise (un bon avant = un bon apres)
-    const q = assessQuality(c);
-    if (!q.ok) {
+    const reject = (reason: string) => {
       capturingRef.current = false;
       holdRef.current = 0;
       setAlignProgress(0);
       qualityUntilRef.current = performance.now() + 2400;
-      setCoach(q.reason);
+      setCoach(reason);
       setStatus("ready");
-      return;
+    };
+
+    // 1) Qualite (nettete + lumiere) : un bon AVANT conditionne un bon apres.
+    const q = assessQuality(c);
+    if (!q.ok) { reject(q.reason); return; }
+
+    // 2) Contenu minimal selon la phase : on REFUSE un mur / ecran noir / cadrage
+    // vide. Sans visage (face) ou sans cheveux (dessus), la prise est inutile et
+    // l'avant/apres serait nul -> on ne capture pas une poubelle.
+    const hb = maskBufRef.current;
+    let hairCount = 0;
+    if (hb) for (let i = 0; i < hb.length; i++) if (hb[i]) hairCount++;
+    const hairRatioNow = hb && hb.length ? hairCount / hb.length : 0;
+    const faceSeen = !!landmarksRef.current;
+    const phaseNow = phaseRef.current;
+    if (phaseNow === 0 && !faceSeen) {
+      reject("Visage non détecté · place bien ton visage dans le cadre"); return;
+    }
+    if (phaseNow === 1 && hairRatioNow < MIN_HAIR_RATIO) {
+      reject("On ne voit pas le dessus de ta tête · penche-toi vers la caméra"); return;
+    }
+    if (phaseNow === 2 && !faceSeen && hairRatioNow < 0.02) {
+      reject("Cadre bien ta tête dans le repère"); return;
     }
 
     const dataUrl = c.toDataURL("image/jpeg", 0.92);
@@ -644,9 +664,9 @@ export default function HairScanner({ onAllCaptured }: Props) {
         </h2>
       </div>
 
-      <div className="relative w-full overflow-hidden rounded-[16px] bg-surface-2">
-        <video ref={videoRef} autoPlay muted playsInline className="w-full" style={{ transform: "scaleX(-1)" }} />
-        <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 h-full w-full" style={{ transform: "scaleX(-1)" }} />
+      <div className="relative mx-auto aspect-[3/4] max-h-[58vh] w-full overflow-hidden rounded-[16px] bg-surface-2">
+        <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" style={{ transform: "scaleX(-1)" }} />
+        <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 h-full w-full object-cover" style={{ transform: "scaleX(-1)" }} />
         <canvas ref={captureRef} className="hidden" />
 
         {/* Réticule de cadrage : coins de viseur (instrument de précision) */}
