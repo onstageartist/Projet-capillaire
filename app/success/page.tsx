@@ -11,7 +11,9 @@ export default function Success() {
 
   useEffect(() => {
     let attempts = 0;
-    const maxAttempts = 20;
+    // Le webhook de paiement peut prendre 1-3 min en pic : on attend jusqu'a ~3 min
+    // (intervalle qui s'allonge un peu) avant d'afficher l'etat "presque pret".
+    const maxAttempts = 40;
 
     async function check() {
       const supabase = createClient();
@@ -36,7 +38,7 @@ export default function Success() {
         return;
       }
 
-      setTimeout(check, 3000);
+      setTimeout(check, attempts < 10 ? 3000 : 5000);
     }
 
     check();
@@ -69,15 +71,20 @@ export default function Success() {
         )}
         {status === "pending" && (
           <>
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft">
+              <svg className="h-8 w-8 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+            </div>
             <h1 className="font-display text-[26px] font-semibold tracking-[-0.01em] text-text">
-              Presque prêt
+              Paiement confirmé ✓
             </h1>
             <p className="text-sm text-text-muted">
-              Le paiement est en cours de traitement. Ton accès sera activé
-              dans quelques minutes.
+              Merci ! Ton accès s'active tout seul, ça peut prendre 1 à 2 minutes.
+              Clique pour vérifier — pas besoin de payer à nouveau.
             </p>
-            <Button variant="primary" onClick={() => router.push("/app")}>
-              Aller à mon espace
+            <Button variant="primary" onClick={() => window.location.reload()}>
+              Vérifier mon accès
             </Button>
           </>
         )}
