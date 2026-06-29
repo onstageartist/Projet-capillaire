@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Gauge, Reveal, ScoreMark } from "@/components/ui";
 import SmoothScroll from "@/components/smooth-scroll";
 import { HeroPreview } from "@/components/landing/hero-preview";
+import { DensityField } from "@/components/landing/density-field";
 import { TrustBar } from "@/components/landing/trust-bar";
 import { StatsBand } from "@/components/landing/stats-band";
 import { Reassurance } from "@/components/landing/reassurance";
@@ -104,6 +105,7 @@ export default function Home() {
       {/* Hero */}
       <section id="hero" className="grain relative isolate flex flex-col items-center overflow-hidden px-5 pb-20 pt-20 sm:pb-24 sm:pt-28">
         <div className="contour-bg" />
+        <DensityField className="-z-10 opacity-90 [mask-image:radial-gradient(85%_70%_at_50%_32%,black,transparent_80%)]" />
         <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-xs font-medium text-text-muted">
           <ScoreMark size={16} value={0.72} />
           Analyse capillaire de bien-être, par IA
