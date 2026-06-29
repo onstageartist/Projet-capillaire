@@ -75,7 +75,6 @@ const TOTAL_SCREENS = QUIZ.length + 2; // 5 questions + transition + account
 export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [showFeedback, setShowFeedback] = useState(false);
   const [direction, setDirection] = useState<"next" | "prev">("next");
 
   useEffect(() => {
@@ -102,23 +101,20 @@ export default function Onboarding() {
     (key: string, value: string) => {
       const updated = { ...answers, [key]: value };
       setAnswers(updated);
-      setShowFeedback(true);
 
       trackEvent("quiz_step_completed", { step: key, answer: value });
-      saveToServer(updated, step);
+      saveToServer(updated, step); // fire-and-forget : ne bloque jamais l'écran
 
-      setTimeout(() => {
-        setShowFeedback(false);
-        setDirection("next");
-        setStep((s) => s + 1);
-      }, 1200);
+      // Passage INSTANTANÉ à la question suivante (l'animation de glissement
+      // reste fluide via key={step}, mais zéro attente).
+      setDirection("next");
+      setStep((s) => s + 1);
     },
     [answers, step, saveToServer]
   );
 
   const goBack = useCallback(() => {
     if (step > 0) {
-      setShowFeedback(false);
       setDirection("prev");
       setStep((s) => s - 1);
     }
@@ -158,12 +154,6 @@ export default function Onboarding() {
                   />
                 ))}
               </div>
-
-              {showFeedback && (
-                <p className="animate-fade-in text-sm text-accent">
-                  {QUIZ[step].feedback}
-                </p>
-              )}
             </div>
           ) : isTransition ? (
             <div className="space-y-6">
@@ -198,7 +188,7 @@ export default function Onboarding() {
           )}
         </div>
 
-        {step > 0 && !showFeedback && (
+        {step > 0 && (
           <button
             onClick={goBack}
             className="mt-6 text-sm text-text-muted transition-colors hover:text-text"
