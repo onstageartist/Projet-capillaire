@@ -50,17 +50,40 @@ export class LemonSqueezyProvider implements BillingProvider {
 
   async verifyWebhook(req: Request): Promise<WebhookEvent | null> {
     const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? "";
+    // Sans secret configuré, on refuse tout : pas de webhook accepté en aveugle.
+    if (!secret) {
+      console.error("[LemonSqueezy] LEMONSQUEEZY_WEBHOOK_SECRET non configuré.");
+      return null;
+    }
     const body = await req.text();
     const sig = req.headers.get("x-signature") ?? "";
 
     const hmac = crypto.createHmac("sha256", secret).update(body).digest("hex");
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(hmac))) {
+    const sigBuf = Buffer.from(sig, "hex");
+    const hmacBuf = Buffer.from(hmac, "hex");
+    // timingSafeEqual lève si les longueurs diffèrent : on garde-fou avant.
+    if (sigBuf.length !== hmacBuf.length || !crypto.timingSafeEqual(sigBuf, hmacBuf)) {
       return null;
     }
 
-    const payload = JSON.parse(body);
-    const eventName = payload.meta?.event_name as string;
-    const attrs = payload.data?.attributes ?? {};
+    let payload: Record<string, unknown> & {
+      meta?: { event_name?: string; custom_data?: { user_id?: string } };
+      data?: { id?: string; attributes?: Record<string, unknown> };
+    };
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      console.error("[LemonSqueezy] Webhook JSON illisible.");
+      return null;
+    }
+    const eventName = payload.meta?.event_name ?? "";
+    const attrs = (payload.data?.attributes ?? {}) as {
+      variant_id?: string | number;
+      first_subscription_item?: { variant_id?: string | number };
+      status?: string;
+      customer_id?: string | number;
+      renews_at?: string | null;
+    };
     const customData = payload.meta?.custom_data ?? {};
 
     const planMap: Record<string, Plan> = {};
@@ -94,7 +117,7 @@ export class LemonSqueezyProvider implements BillingProvider {
       type,
       userId: customData.user_id ?? "",
       plan,
-      status: statusMap[attrs.status] ?? "active",
+      status: statusMap[attrs.status ?? ""] ?? "active",
       providerCustomerId: String(attrs.customer_id ?? ""),
       providerSubscriptionId: String(payload.data?.id ?? ""),
       currentPeriodEnd: attrs.renews_at ?? null,

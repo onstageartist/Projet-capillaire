@@ -18,6 +18,19 @@ export async function POST(req: Request) {
 
     const supabase = createAdminClient();
 
+    // Le user_id vient du custom_data du checkout. Même si la signature est
+    // valide, on confirme que ce compte existe avant de lui poser un abonnement
+    // (jamais d'activation sur un id arbitraire).
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", event.userId)
+      .single();
+    if (!profile) {
+      console.error(`[Webhook] user_id inconnu, ignoré : ${event.userId}`);
+      return NextResponse.json({ error: "Unknown user" }, { status: 400 });
+    }
+
     const { data: existing } = await supabase
       .from("subscriptions")
       .select("id")

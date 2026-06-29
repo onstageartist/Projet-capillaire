@@ -46,5 +46,19 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Garde admin : la zone /admin n'est ouverte qu'aux emails autorisés, dès le
+  // serveur (l'API /api/admin revérifie de son côté).
+  if (user && path.startsWith("/admin")) {
+    const admins = (process.env.ADMIN_EMAILS || "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    if (!admins.includes((user.email ?? "").toLowerCase())) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }

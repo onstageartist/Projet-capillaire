@@ -160,6 +160,11 @@ export async function POST(request: Request) {
 
     if (!file) return NextResponse.json({ error: "Aucune photo envoyée" }, { status: 400 });
     if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: "Photo trop lourde (max 10 Mo)" }, { status: 400 });
+    // N'envoyer à l'IA (facturée) que des images réelles, jamais un autre type déguisé.
+    const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
+    if (!ALLOWED.includes(file.type)) {
+      return NextResponse.json({ error: "Format non supporté (JPEG, PNG ou WebP)" }, { status: 400 });
+    }
 
     const bytes = await file.arrayBuffer();
     const base64 = Buffer.from(bytes).toString("base64");

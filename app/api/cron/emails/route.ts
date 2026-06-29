@@ -11,7 +11,13 @@ import {
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // Fail-closed : sans secret configuré, l'endpoint reste fermé (sinon n'importe
+  // qui peut déclencher un envoi d'emails en masse).
+  if (!cronSecret) {
+    console.error("[CRON emails] CRON_SECRET non configuré : endpoint fermé.");
+    return NextResponse.json({ error: "Service indisponible" }, { status: 503 });
+  }
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
